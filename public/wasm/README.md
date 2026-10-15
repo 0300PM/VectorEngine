@@ -1,17 +1,13 @@
-Place generated Emscripten output here.
+# WebAssembly artifacts
 
-Expected files after compilation:
-- vector_engine.js
-- vector_engine.wasm
+This directory receives the compiled engine (`vector_engine.js` and `vector_engine.wasm`).
+The files are build outputs and are intentionally not committed.
 
-Build from project root:
+Build them with an activated Emscripten SDK:
 
-1. `cd cpp`
-2. `bash build_wasm.sh`
+```bash
+npm run build:wasm
+```
 
-Engine sources are split into modules:
-- `vector_engine.cpp` - C API exported to JS
-- `scene_renderer.cpp` - JSON parsing and scene dispatch
-- `rasterizer.cpp` - pixel drawing and blending
-- `math2d.cpp` - transform matrix math
-- `color.cpp` - color parsing and opacity handling
+When the artifacts are missing the application automatically falls back to the
+TypeScript Canvas 2D engine and reports the reason in the status line.

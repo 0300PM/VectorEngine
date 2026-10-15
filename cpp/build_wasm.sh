@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p ../public/wasm
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+build_dir="$root/build-wasm"
+output_dir="$root/../public/wasm"
 
-emcc \
-  vector_engine.cpp \
-  scene_renderer.cpp \
-  rasterizer.cpp \
-  math2d.cpp \
-  color.cpp \
-  -O3 \
-  -s WASM=1 \
-  -s MODULARIZE=1 \
-  -s EXPORT_ES6=1 \
-  -s ENVIRONMENT=web \
-  -s EXPORTED_FUNCTIONS='["_render_scene","_get_buffer_size"]' \
-  -s EXPORTED_RUNTIME_METHODS='["ccall"]' \
-  -o ../public/wasm/vector_engine.js
+command -v emcmake >/dev/null 2>&1 || {
+  echo "emcmake not found. Activate the Emscripten SDK first (source emsdk_env.sh)." >&2
+  exit 1
+}
 
-echo "WASM build complete: public/wasm/vector_engine.{js,wasm}"
+emcmake cmake -S "$root" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$build_dir" --target vector_engine
+
+mkdir -p "$output_dir"
+cp "$build_dir/vector_engine.js" "$build_dir/vector_engine.wasm" "$output_dir/"
+
+echo "WebAssembly build complete: public/wasm/vector_engine.{js,wasm}"
