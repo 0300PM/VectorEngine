@@ -16,6 +16,8 @@ class Reader {
 
   [[nodiscard]] bool has(std::size_t count) const noexcept { return offset_ + count <= data_.size(); }
 
+  [[nodiscard]] bool exhausted() const noexcept { return offset_ == data_.size(); }
+
   [[nodiscard]] std::expected<double, DecodeError> number() {
     if (!has(1)) {
       return std::unexpected(DecodeError::truncated_buffer);
@@ -182,6 +184,34 @@ std::expected<Scene, DecodeError> decode_scene(std::span<const double> buffer) {
     scene.items.push_back(std::move(*item));
   }
   return scene;
+}
+
+std::expected<Path, DecodeError> decode_path(std::span<const double> buffer) {
+  Reader reader(buffer);
+  auto path = read_path(reader);
+  if (!path) {
+    return std::unexpected(path.error());
+  }
+  if (!reader.exhausted()) {
+    return std::unexpected(DecodeError::invalid_value);
+  }
+  return path;
+}
+
+std::vector<double> encode_path(const Path& path) {
+  std::vector<double> buffer;
+  buffer.reserve(1 + path.verbs.size() + path.points.size() * 2);
+  buffer.push_back(static_cast<double>(path.verbs.size()));
+  std::size_t cursor = 0;
+  for (const PathVerb verb : path.verbs) {
+    buffer.push_back(static_cast<double>(verb));
+    for (std::size_t index = 0; index < point_count(verb); ++index) {
+      buffer.push_back(path.points[cursor].x);
+      buffer.push_back(path.points[cursor].y);
+      ++cursor;
+    }
+  }
+  return buffer;
 }
 
 }

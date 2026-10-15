@@ -29,8 +29,10 @@ const blobToInput = async (fileName: string, blob: Blob): Promise<ReadInput> => 
 describe('vex container', () => {
   it('writes manifest and document entries and reads them back', async () => {
     const document = sampleDocument()
-    const blob = await vexWriter.write(document)
+    const { blob, validation, processedObjects } = await vexWriter.write(document)
     expect(blob.type).toBe(vexWriter.mimeType)
+    expect(validation).toBe('passed')
+    expect(processedObjects).toBe(1)
 
     const input = await blobToInput('fixture.vex', blob)
     const entries = unzipSync(input.bytes)
@@ -46,7 +48,9 @@ describe('vex container', () => {
   })
 
   it('embeds thumbnails and reports unknown entries', async () => {
-    const blob = await vexWriter.write(sampleDocument(), { thumbnail: new Uint8Array([1, 2, 3]) })
+    const { blob } = await vexWriter.write(sampleDocument(), {
+      thumbnail: new Uint8Array([1, 2, 3]),
+    })
     const input = await blobToInput('fixture.vex', blob)
     const entries = unzipSync(input.bytes)
     expect(entries[vexEntries.thumbnail]).toEqual(new Uint8Array([1, 2, 3]))
@@ -119,13 +123,19 @@ describe('format registry', () => {
     }
     expect(registry.findReader(legacy)?.id).toBe('legacy-scene')
 
-    const vex = await blobToInput('c.vex', await vexWriter.write(sampleDocument()))
+    const vex = await blobToInput('c.vex', (await vexWriter.write(sampleDocument())).blob)
     expect(registry.findReader(vex)?.id).toBe('vex')
-    expect(registry.findReader({ fileName: 'd.svg', bytes: new Uint8Array() })).toBeUndefined()
+    expect(registry.findReader({ fileName: 'd.svg', bytes: new Uint8Array() })?.id).toBe('svg')
+    expect(registry.findReader({ fileName: 'e.ai', bytes: new Uint8Array() })).toBeUndefined()
   })
 
   it('exposes writers and accepted file types', () => {
-    expect(registry.writers.map((writer) => writer.id)).toEqual(['vex', 'document-json'])
+    expect(registry.writers.map((writer) => writer.id)).toEqual([
+      'vex',
+      'document-json',
+      'svg',
+      'pdf',
+    ])
     expect(registry.acceptedFileTypes()).toContain('.vex')
     expect(registry.acceptedFileTypes()).toContain('application/json')
   })

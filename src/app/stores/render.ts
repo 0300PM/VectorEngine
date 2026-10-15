@@ -86,6 +86,7 @@ export const useRenderStore = defineStore('render', () => {
     activeEngine,
     result,
     isRendering,
+    sceneBuild,
     scene,
     unsupported,
     renderPreview,

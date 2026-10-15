@@ -1,5 +1,7 @@
-import { parseDocument, serializeDocument, type VectorDocument } from '@/core/document'
+import { countNodes, parseDocument, serializeDocument, type VectorDocument } from '@/core/document'
 import { err, ok, type Result } from '@/core/result'
+import { defineCapabilities } from '../compatibility/features'
+import type { WriteResult } from '../compatibility/report'
 import {
   bytesToBlob,
   encodeText,
@@ -51,8 +53,14 @@ export const documentJsonWriter: DocumentWriter = {
   label: 'Vector document JSON',
   extensions: ['.json'],
   mimeType: MIME_TYPE,
-  inspect: inspectAssets,
-  write(document: VectorDocument): Promise<Blob> {
-    return Promise.resolve(bytesToBlob(encodeText(serializeDocument(document)), MIME_TYPE))
+  capabilities: defineCapabilities('native', { assets: 'converted' }),
+  write(document: VectorDocument): Promise<WriteResult> {
+    return Promise.resolve({
+      blob: bytesToBlob(encodeText(serializeDocument(document)), MIME_TYPE),
+      processedObjects: countNodes(document),
+      skippedObjects: 0,
+      transformations: [],
+      validation: 'passed',
+    })
   },
 }

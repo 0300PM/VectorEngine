@@ -1,8 +1,16 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { scaleSizeBy } from '@/core/scene'
 import { createBrowserSurface } from '@/engine'
-import { encodeRenderResult, type FormatWarning, type ReadInput } from '@/formats'
+import {
+  analyzeCompatibility,
+  conversionReportBlob,
+  conversionReportFileName,
+  convertDocument,
+  encodeRenderResult,
+  type ConversionReport,
+  type ReadInput,
+} from '@/formats'
 import { downloadBlob, slugify } from '../services/download'
 import { formatRegistry } from '../services/formats'
 import { useDocumentStore } from './document'
@@ -10,6 +18,7 @@ import { useRenderStore } from './render'
 import { useStatusStore } from './status'
 
 const THUMBNAIL_MAX_SIZE = 256
+export const NATIVE_SOURCE_FORMAT = 'document'
 
 export const useFilesStore = defineStore('files', () => {
   const documentStore = useDocumentStore()
@@ -17,14 +26,19 @@ export const useFilesStore = defineStore('files', () => {
   const status = useStatusStore()
 
   const isBusy = ref(false)
+  const targetFormatId = ref(formatRegistry.writers[0]?.id ?? '')
+  const lastReport = shallowRef<ConversionReport | undefined>(undefined)
 
   const writers = computed(() => formatRegistry.writers)
   const acceptedFileTypes = computed(() => formatRegistry.acceptedFileTypes())
-  const writerWarnings = computed<Readonly<Record<string, readonly FormatWarning[]>>>(() =>
-    Object.fromEntries(
-      formatRegistry.writers.map((writer) => [writer.id, writer.inspect(documentStore.document)]),
-    ),
+  const targetWriter = computed(() => formatRegistry.findWriter(targetFormatId.value))
+  const compatibility = computed(() =>
+    targetWriter.value
+      ? analyzeCompatibility(documentStore.document, targetWriter.value)
+      : undefined,
   )
+  const isBlocked = computed(() => compatibility.value?.verdict === 'blocked')
+  const sourceFormat = computed(() => documentStore.importReport?.formatId ?? NATIVE_SOURCE_FORMAT)
 
   const guarded = async (task: () => Promise<void>): Promise<void> => {
     isBusy.value = true
@@ -49,18 +63,31 @@ export const useFilesStore = defineStore('files', () => {
     return new Uint8Array(await blob.arrayBuffer())
   }
 
-  const saveAs = (formatId: string): Promise<void> =>
+  const saveAs = (formatId: string = targetFormatId.value): Promise<void> =>
     guarded(async () => {
       const writer = formatRegistry.findWriter(formatId)
       if (!writer) {
         throw new Error(`Unknown writer "${formatId}"`)
       }
       const thumbnail = formatId === 'vex' ? await renderThumbnail() : undefined
-      const blob = await writer.write(documentStore.document, thumbnail ? { thumbnail } : {})
       const fileName = `${slugify(documentStore.document.name)}${writer.extensions[0] ?? ''}`
-      downloadBlob(blob, fileName)
+      const outcome = await convertDocument(
+        writer,
+        documentStore.document,
+        { sourceFormat: sourceFormat.value, fileName },
+        thumbnail ? { thumbnail } : {},
+      )
+      lastReport.value = outcome.report
+      downloadBlob(outcome.blob, fileName)
       status.report('status.exported', 'success', { fileName })
     })
+
+  const downloadReport = (): void => {
+    const report = lastReport.value
+    if (report) {
+      downloadBlob(conversionReportBlob(report), conversionReportFileName(report))
+    }
+  }
 
   const importFile = (file: File): Promise<void> =>
     guarded(async () => {
@@ -88,5 +115,17 @@ export const useFilesStore = defineStore('files', () => {
       status.report('status.imported', 'success', { fileName: file.name, format: reader.label })
     })
 
-  return { isBusy, writers, acceptedFileTypes, writerWarnings, saveAs, importFile }
+  return {
+    isBusy,
+    writers,
+    acceptedFileTypes,
+    targetFormatId,
+    targetWriter,
+    compatibility,
+    isBlocked,
+    lastReport,
+    saveAs,
+    downloadReport,
+    importFile,
+  }
 })

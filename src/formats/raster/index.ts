@@ -1,6 +1,14 @@
-import type { RenderScene } from '@/core/scene'
+import type { VectorDocument } from '@/core/document'
+import type { SceneBuildResult, UnsupportedFeature } from '@/core/scene'
 import type { RenderResult, SurfaceFactory } from '@/engine'
-import type { FormatWarning } from '../types'
+import { analyzeCompatibility } from '../compatibility/analyze'
+import { buildConversionReport, type ConversionOutcome } from '../compatibility/convert'
+import {
+  defineCapabilities,
+  type CapabilityTarget,
+  type FormatCapabilities,
+} from '../compatibility/features'
+import type { Transformation } from '../compatibility/report'
 
 export const rasterFormats = ['png', 'jpeg', 'webp'] as const
 export type RasterFormat = (typeof rasterFormats)[number]
@@ -26,10 +34,39 @@ export const rasterFormatInfo: Readonly<Record<RasterFormat, RasterFormatInfo>> 
 export const MIN_QUALITY = 0.1
 export const MAX_QUALITY = 1
 
-export const inspectRasterExport = (scene: RenderScene, format: RasterFormat): FormatWarning[] =>
-  !rasterFormatInfo[format].supportsAlpha && scene.background.a < 1
-    ? [{ code: 'alpha_flattened', detail: format }]
-    : []
+const rasterBaseCapabilities: Partial<FormatCapabilities> = {
+  text: 'unsupported',
+  image: 'unsupported',
+  evenodd: 'converted',
+  groupOpacity: 'converted',
+  layers: 'dropped',
+  hiddenLayers: 'dropped',
+  lockedLayers: 'dropped',
+  physicalUnits: 'converted',
+  displayP3: 'converted',
+  assets: 'dropped',
+  metadata: 'dropped',
+}
+
+export const rasterCapabilities: Readonly<Record<RasterFormat, FormatCapabilities>> = {
+  png: defineCapabilities('native', rasterBaseCapabilities),
+  jpeg: defineCapabilities('native', {
+    ...rasterBaseCapabilities,
+    colorAlpha: 'dropped',
+    transparentBackground: 'dropped',
+  }),
+  webp: defineCapabilities('native', rasterBaseCapabilities),
+}
+
+export const rasterTarget = (format: RasterFormat): CapabilityTarget => ({
+  id: format,
+  label: format.toUpperCase(),
+  capabilities: rasterCapabilities[format],
+  medium: 'raster',
+})
+
+export const analyzeRasterExport = (document: VectorDocument, format: RasterFormat) =>
+  analyzeCompatibility(document, rasterTarget(format))
 
 export const flattenOntoWhite = (pixels: Uint8ClampedArray): Uint8ClampedArray => {
   const flattened = new Uint8ClampedArray(pixels.length)
@@ -86,4 +123,82 @@ export const encodeRenderResult = async (
     info.mimeType,
     info.supportsQuality ? quality : undefined,
   )
+}
+
+const describeUnsupported = (unsupported: readonly UnsupportedFeature[], kind: string): string =>
+  unsupported
+    .filter((item) => item.feature === kind)
+    .map((item) => item.nodeId)
+    .join(', ')
+
+const rasterTransformations = (
+  document: VectorDocument,
+  build: SceneBuildResult,
+  result: RenderResult,
+  format: RasterFormat,
+): Transformation[] => {
+  const transformations: Transformation[] = [
+    { kind: 'rasterized', detail: `${result.width}×${result.height} px, ${result.engine}` },
+  ]
+  if (document.unit !== 'px') {
+    transformations.push({
+      kind: 'units_converted',
+      detail: `${document.unit} → px @ ${document.exportSettings.dpi} dpi`,
+    })
+  }
+  if (!rasterFormatInfo[format].supportsAlpha) {
+    transformations.push({ kind: 'alpha_flattened', detail: 'white' })
+  }
+  const hidden = document.layers.filter((layer) => !layer.visible)
+  if (hidden.length > 0) {
+    transformations.push({
+      kind: 'hidden_layers_omitted',
+      detail: hidden.map((layer) => layer.name).join(', '),
+    })
+  }
+  if (document.layers.length > 0) {
+    transformations.push({ kind: 'layers_flattened' })
+  }
+  const evenodd = describeUnsupported(build.unsupported, 'evenodd')
+  if (evenodd) {
+    transformations.push({ kind: 'fill_rule_converted', detail: evenodd })
+  }
+  const skipped = build.unsupported.filter((item) => item.feature !== 'evenodd')
+  if (skipped.length > 0) {
+    transformations.push({
+      kind: 'objects_skipped',
+      detail: skipped.map((item) => item.nodeId).join(', '),
+    })
+  }
+  return transformations
+}
+
+export type RasterExportInput = {
+  readonly document: VectorDocument
+  readonly build: SceneBuildResult
+  readonly result: RenderResult
+  readonly options: RasterEncodeOptions
+  readonly fileName: string
+  readonly sourceFormat: string
+}
+
+export const exportRaster = async (
+  input: RasterExportInput,
+  createSurface: SurfaceFactory,
+): Promise<ConversionOutcome> => {
+  const { document, build, result, options } = input
+  const blob = await encodeRenderResult(result, options, createSurface)
+  const compatibility = analyzeCompatibility(document, rasterTarget(options.format))
+  const skipped = build.unsupported.filter((item) => item.feature !== 'evenodd').length
+  const report = buildConversionReport(
+    { sourceFormat: input.sourceFormat, fileName: input.fileName },
+    compatibility,
+    {
+      processedObjects: build.scene.items.length,
+      skippedObjects: skipped,
+      transformations: rasterTransformations(document, build, result, options.format),
+      validation: blob.size > 0 ? 'passed' : 'failed',
+    },
+  )
+  return { blob, report }
 }

@@ -3,7 +3,9 @@
 #include <cstdint>
 #include <expected>
 #include <span>
+#include <vector>
 
+#include "vex/path.hpp"
 #include "vex/scene.hpp"
 
 namespace vex {
@@ -18,5 +20,9 @@ enum class DecodeError : std::int32_t {
 };
 
 [[nodiscard]] std::expected<Scene, DecodeError> decode_scene(std::span<const double> buffer);
+
+[[nodiscard]] std::expected<Path, DecodeError> decode_path(std::span<const double> buffer);
+
+[[nodiscard]] std::vector<double> encode_path(const Path& path);
 
 }

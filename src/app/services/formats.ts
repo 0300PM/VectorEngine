@@ -1,3 +1,3 @@
-import { createDefaultFormatRegistry } from '@/formats'
+import { browserXmlParser, createDefaultFormatRegistry } from '@/formats'
 
-export const formatRegistry = createDefaultFormatRegistry()
+export const formatRegistry = createDefaultFormatRegistry({ xmlParser: browserXmlParser })

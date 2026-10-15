@@ -6,6 +6,7 @@ import {
   type VectorEngine,
 } from '../types'
 import { loadVectorEngineModule, type VectorEngineModule } from './module'
+import { createPathOps, type PathOps } from './pathOps'
 import { encodeRenderScene, PROTOCOL_VERSION, RenderStatus, renderStatusLabel } from './protocol'
 
 type RendererHandle = { readonly pointer: number; readonly width: number; readonly height: number }
@@ -17,10 +18,12 @@ export class WasmEngine implements VectorEngine {
   readonly kind = 'wasm'
 
   readonly #module: VectorEngineModule
+  readonly pathOps: PathOps | undefined
   #renderer: RendererHandle | undefined
 
   private constructor(module: VectorEngineModule) {
     this.#module = module
+    this.pathOps = createPathOps(module)
   }
 
   static async load(glueUrl: string): Promise<WasmEngine> {

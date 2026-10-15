@@ -9,9 +9,14 @@ with a Canvas 2D fallback written in TypeScript. The project follows the plan de
 
 - Versioned document model (`VectorDocument` → layers → nodes) validated with Zod
 - Native `.vex` project container (ZIP with `manifest.json`, `document.json`, previews, assets)
-- Format registry with content sniffing: `.vex`, native JSON documents and legacy scene files
+- Format registry with content sniffing: `.vex`, native JSON documents, legacy scene files and SVG
+- SVG import/export with an injectable XML parser, PDF export with structural self-validation
+- Compatibility analysis before every export and a downloadable loss report after it
+  (see [docs/FORMATS.md](docs/FORMATS.md) for the capability matrix and documented limitations)
 - Raster export to PNG, JPEG and WebP at scale presets or custom dimensions
 - C++/WebAssembly rasteriser with analytic anti-aliasing, nonzero winding and round strokes
+- C++ path operations (length, exact bounds, self-intersections, reversal, simplification)
+  exposed through the same C API and verb encoding
 - Automatic fallback to Canvas 2D when the WebAssembly artifacts are unavailable
 - Nothing is dropped silently: unsupported features and export losses are reported before saving
 - Polish and English interface, undo/redo history, layer visibility and locking
@@ -58,7 +63,8 @@ loaded at runtime from `${BASE_URL}wasm/`.
 ```
 src/core      framework-free domain: geometry, colours, document model, render scene, history
 src/engine    VectorEngine interface, Canvas2DEngine, WasmEngine and the render protocol
-src/formats   .vex container, document JSON, legacy scene import, raster encoding
+src/formats   .vex container, document JSON, legacy scene import, SVG, PDF, raster encoding,
+              compatibility analysis and conversion reports
 src/app       Pinia stores and services that orchestrate core, engine and formats
 src/ui        Vue components and composables
 src/i18n      message catalogues (en, pl)
@@ -90,7 +96,7 @@ verbs    : 0 move x y | 1 line x y | 2 quadratic x1 y1 x y | 3 cubic x1 y1 x2 y2
 ```
 
 `vex_renderer_render` returns `0` on success, `1` unsupported protocol, `2` truncated buffer,
-`3` invalid verb, `4` invalid renderer handle, `5` non-finite value.
+`3` invalid verb, `4` invalid renderer handle, `5` non-finite value, `6` output buffer too small.
 
 ### C API
 
@@ -102,7 +108,26 @@ int32_t      vex_renderer_render(VexRenderer* renderer, const double* commands, 
 const uint8_t* vex_renderer_pixels(const VexRenderer* renderer);
 uint32_t     vex_renderer_width(const VexRenderer* renderer);
 uint32_t     vex_renderer_height(const VexRenderer* renderer);
+int32_t      vex_path_measure(const double* path, size_t length, double tolerance,
+                              double* out, size_t out_length);
+int32_t      vex_path_simplify(const double* path, size_t length, double tolerance,
+                               double* out, size_t out_capacity, size_t* out_length);
 ```
+
+### Path operations
+
+`cpp/include/vex/path_ops.hpp` implements, without external libraries: `path_length`
+(adaptive subdivision), `control_bounds`, `exact_bounds` (Bézier extrema), `subpath_count`,
+`degenerate_subpath_count`, `self_intersection_count` (flattened segments, sweep over x),
+`point_at_length`, `reverse_path`, `close_subpaths`, `simplify_polyline` (Douglas–Peucker, open
+and closed) and `simplify_path`. Paths cross the C API as `verbCount, verbs…` using the render
+protocol's verb encoding; `vex_path_measure` fills 13 doubles (`length`, control bounds, exact
+bounds, subpath count, degenerate subpaths, self-intersections, all-closed flag) and
+`vex_path_simplify` reports the required output length with status `6` when the buffer is too
+small. On the TypeScript side `WasmEngine.pathOps` (`measure`, `simplify`) is available when the
+loaded module exports these functions; `encodePathCommands`/`decodePathCommands` implement the
+encoding. Boolean operations and offsetting are planned as in-house implementations in later
+phases.
 
 ## Document model
 
@@ -158,8 +183,18 @@ and unknown schema versions are reported with their JSON path.
 | `previews/thumbnail.png` | optional preview rendered at save time               |
 | `assets/…`               | binary assets referenced by the document             |
 
-Readers warn about unknown entries, missing assets and missing manifests; writers warn when
-assets are referenced but not embedded. Raster export warns when transparency is flattened.
+Readers warn about unknown entries, missing assets and missing manifests; writers declare
+assets as `converted` because payloads are referenced but not embedded yet.
+
+## Export formats and compatibility
+
+Writers: `.vex`, document JSON, SVG, PDF and raster PNG/JPEG/WebP; readers: `.vex`, document
+JSON, legacy scene JSON and SVG. Each writer declares its capabilities per document feature. The
+files panel shows the compatibility analysis for the selected target (`faithful`, `lossy` or
+`blocked` with per-feature severities and remedies) before saving, and the conversion report
+(objects written and skipped, transformations applied, output validation) afterwards; both the
+files panel and the raster export panel offer the report as a JSON download. The capability
+matrix and the documented limitations of every adapter live in [docs/FORMATS.md](docs/FORMATS.md).
 
 ## Conventions
 

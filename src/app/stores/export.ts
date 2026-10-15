@@ -1,16 +1,20 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { scaleSizeBy, type PixelSize } from '@/core/scene'
 import { createBrowserSurface } from '@/engine'
 import {
-  encodeRenderResult,
-  inspectRasterExport,
+  analyzeRasterExport,
+  conversionReportBlob,
+  conversionReportFileName,
+  exportRaster as exportRasterDocument,
   rasterFormatInfo,
   rasterFormats,
+  type ConversionReport,
   type RasterFormat,
 } from '@/formats'
 import { downloadBlob, slugify } from '../services/download'
 import { useDocumentStore } from './document'
+import { NATIVE_SOURCE_FORMAT } from './files'
 import { useRenderStore } from './render'
 import { useStatusStore } from './status'
 
@@ -35,6 +39,7 @@ export const useExportStore = defineStore('export', () => {
   const format = ref<RasterFormat>('png')
   const quality = ref(DEFAULT_QUALITY)
   const isExporting = ref(false)
+  const lastReport = shallowRef<ConversionReport | undefined>(undefined)
 
   const targetSize = computed<PixelSize | undefined>(() => {
     if (sizeMode.value === 'scale') {
@@ -45,7 +50,8 @@ export const useExportStore = defineStore('export', () => {
       : undefined
   })
 
-  const warnings = computed(() => inspectRasterExport(renderStore.scene, format.value))
+  const compatibility = computed(() => analyzeRasterExport(documentStore.document, format.value))
+  const isBlocked = computed(() => compatibility.value.verdict === 'blocked')
 
   const baseFileName = computed(() => slugify(documentStore.document.name))
 
@@ -56,13 +62,20 @@ export const useExportStore = defineStore('export', () => {
       return
     }
     const rendered = await renderStore.renderAt(size)
-    const blob = await encodeRenderResult(
-      rendered,
-      { format: target, quality: quality.value },
+    const fileName = `${baseFileName.value}-${size.width}x${size.height}.${rasterFormatInfo[target].extension}`
+    const outcome = await exportRasterDocument(
+      {
+        document: documentStore.document,
+        build: renderStore.sceneBuild,
+        result: rendered,
+        options: { format: target, quality: quality.value },
+        fileName,
+        sourceFormat: documentStore.importReport?.formatId ?? NATIVE_SOURCE_FORMAT,
+      },
       createBrowserSurface,
     )
-    const fileName = `${baseFileName.value}-${size.width}x${size.height}.${rasterFormatInfo[target].extension}`
-    downloadBlob(blob, fileName)
+    lastReport.value = outcome.report
+    downloadBlob(outcome.blob, fileName)
     status.report('status.exported', 'success', { fileName })
   }
 
@@ -86,6 +99,13 @@ export const useExportStore = defineStore('export', () => {
       }
     })
 
+  const downloadReport = (): void => {
+    const report = lastReport.value
+    if (report) {
+      downloadBlob(conversionReportBlob(report), conversionReportFileName(report))
+    }
+  }
+
   return {
     sizeMode,
     scale,
@@ -95,8 +115,11 @@ export const useExportStore = defineStore('export', () => {
     quality,
     isExporting,
     targetSize,
-    warnings,
+    compatibility,
+    isBlocked,
+    lastReport,
     exportRaster,
     exportAllRasters,
+    downloadReport,
   }
 })

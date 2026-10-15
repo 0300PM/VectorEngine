@@ -15,6 +15,8 @@ import BaseField from '../base/BaseField.vue'
 import BaseNumberInput from '../base/BaseNumberInput.vue'
 import BasePanel from '../base/BasePanel.vue'
 import BaseSelect, { type SelectOption } from '../base/BaseSelect.vue'
+import CompatibilityList from './CompatibilityList.vue'
+import ConversionSummary from './ConversionSummary.vue'
 
 const { t } = useMessages()
 const exportStore = useExportStore()
@@ -27,7 +29,9 @@ const {
   quality,
   isExporting,
   targetSize,
-  warnings,
+  compatibility,
+  isBlocked,
+  lastReport,
 } = storeToRefs(exportStore)
 
 const sizeModeOptions = computed<SelectOption<SizeMode>[]>(() =>
@@ -90,23 +94,33 @@ const supportsQuality = computed(() => rasterFormatInfo[format.value].supportsQu
       {{ targetSize ? t('export.output', targetSize) : t('status.invalidSize') }}
     </p>
 
-    <ul v-if="warnings.length > 0" class="mt-2 space-y-1 text-xs text-amber-300">
-      <li v-for="warning in warnings" :key="warning.code">
-        {{ t(`warnings.${warning.code}`, { detail: (warning.detail ?? '').toUpperCase() }) }}
-      </li>
-    </ul>
+    <div class="mt-3">
+      <CompatibilityList :report="compatibility" />
+    </div>
+
+    <p v-if="isBlocked" class="mt-2 text-xs text-rose-300">{{ t('files.blocked') }}</p>
 
     <div class="mt-4 flex flex-wrap gap-3">
       <BaseButton
         variant="success"
-        :disabled="isExporting || !targetSize"
+        :disabled="isExporting || !targetSize || isBlocked"
         @click="exportStore.exportRaster()"
       >
         {{ t('export.run', { format: format.toUpperCase() }) }}
       </BaseButton>
-      <BaseButton :disabled="isExporting || !targetSize" @click="exportStore.exportAllRasters()">
+      <BaseButton
+        :disabled="isExporting || !targetSize || isBlocked"
+        @click="exportStore.exportAllRasters()"
+      >
         {{ t('export.runAll') }}
       </BaseButton>
     </div>
+
+    <ConversionSummary
+      v-if="lastReport"
+      class="mt-4"
+      :report="lastReport"
+      @download="exportStore.downloadReport()"
+    />
   </BasePanel>
 </template>

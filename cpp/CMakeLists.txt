@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(VEX_SOURCES
   src/flatten.cpp
+  src/path_ops.cpp
   src/stroke.cpp
   src/protocol.cpp
   src/rasterizer.cpp
@@ -33,7 +34,7 @@ if(EMSCRIPTEN)
     -sENVIRONMENT=web
     -sALLOW_MEMORY_GROWTH=1
     -sFILESYSTEM=0
-    "-sEXPORTED_FUNCTIONS=_vex_protocol_version,_vex_renderer_create,_vex_renderer_destroy,_vex_renderer_render,_vex_renderer_pixels,_vex_renderer_width,_vex_renderer_height,_malloc,_free"
+    "-sEXPORTED_FUNCTIONS=_vex_protocol_version,_vex_renderer_create,_vex_renderer_destroy,_vex_renderer_render,_vex_renderer_pixels,_vex_renderer_width,_vex_renderer_height,_vex_path_measure,_vex_path_simplify,_malloc,_free"
     "-sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPF64"
   )
 else()
@@ -46,6 +47,7 @@ else()
     tests/main.cpp
     tests/geometry_test.cpp
     tests/flatten_test.cpp
+    tests/path_ops_test.cpp
     tests/stroke_test.cpp
     tests/protocol_test.cpp
     tests/rasterizer_test.cpp

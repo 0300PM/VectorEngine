@@ -1,22 +1,57 @@
 import { describe, expect, it } from 'vitest'
-import { flattenOntoWhite, inspectRasterExport } from './index'
+import { createDocument, createGroup, createLayer, createRectangle } from '@/core/document'
+import { analyzeRasterExport, flattenOntoWhite, rasterCapabilities } from './index'
 
-const transparentScene = {
-  width: 1,
-  height: 1,
-  background: { r: 0, g: 0, b: 0, a: 0 },
-  items: [],
-}
+const translucentDocument = createDocument({
+  width: 10,
+  height: 10,
+  layers: [
+    createLayer([
+      createRectangle(
+        { x: 0, y: 0, width: 5, height: 5 },
+        { id: 'r', style: { fill: { color: '#ff000080' } } },
+      ),
+    ]),
+  ],
+})
 
 describe('raster export', () => {
-  it('warns when alpha would be flattened', () => {
-    expect(inspectRasterExport(transparentScene, 'jpeg')).toEqual([
-      { code: 'alpha_flattened', detail: 'jpeg' },
-    ])
-    expect(inspectRasterExport(transparentScene, 'png')).toEqual([])
-    expect(
-      inspectRasterExport({ ...transparentScene, background: { r: 1, g: 1, b: 1, a: 1 } }, 'jpeg'),
-    ).toEqual([])
+  it('reports flattened transparency only for formats without alpha', () => {
+    const jpeg = analyzeRasterExport(translucentDocument, 'jpeg')
+    expect(jpeg.issues.map((issue) => [issue.feature, issue.severity])).toEqual(
+      expect.arrayContaining([
+        ['colorAlpha', 'warning'],
+        ['transparentBackground', 'warning'],
+      ]),
+    )
+    expect(jpeg.issues.find((issue) => issue.feature === 'colorAlpha')?.remedies).toContain(
+      'flatten_alpha',
+    )
+    const png = analyzeRasterExport(translucentDocument, 'png')
+    expect(png.issues.some((issue) => issue.feature === 'colorAlpha')).toBe(false)
+    expect(rasterCapabilities.webp.colorAlpha).toBe('native')
+  })
+
+  it('never suggests rasterising as a remedy for raster targets', () => {
+    const grouped = createDocument({
+      width: 10,
+      height: 10,
+      layers: [
+        createLayer([
+          createGroup(
+            [
+              createRectangle({ x: 0, y: 0, width: 5, height: 5 }, { id: 'a' }),
+              createRectangle({ x: 2, y: 2, width: 5, height: 5 }, { id: 'b' }),
+            ],
+            { id: 'g', opacity: 0.5 },
+          ),
+        ]),
+      ],
+    })
+    const issue = analyzeRasterExport(grouped, 'png').issues.find(
+      (candidate) => candidate.feature === 'groupOpacity',
+    )
+    expect(issue?.remedies).toEqual(['choose_other_format'])
   })
 
   it('composites translucent pixels onto white', () => {

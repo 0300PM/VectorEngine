@@ -1,12 +1,8 @@
 import { zipSync, type Zippable } from 'fflate'
-import { serializeDocument, type VectorDocument } from '@/core/document'
-import {
-  bytesToBlob,
-  encodeText,
-  type DocumentWriter,
-  type FormatWarning,
-  type WriteOptions,
-} from '../types'
+import { countNodes, serializeDocument, type VectorDocument } from '@/core/document'
+import { defineCapabilities } from '../compatibility/features'
+import type { WriteResult } from '../compatibility/report'
+import { bytesToBlob, encodeText, type DocumentWriter, type WriteOptions } from '../types'
 import { createManifest, VEX_EXTENSION, VEX_MIME_TYPE, vexEntries } from './manifest'
 
 const FORMAT_ID = 'vex'
@@ -16,17 +12,8 @@ export const vexWriter: DocumentWriter = {
   label: 'Vector Engine project',
   extensions: [VEX_EXTENSION],
   mimeType: VEX_MIME_TYPE,
-  inspect(document: VectorDocument): readonly FormatWarning[] {
-    return document.assets.length > 0
-      ? [
-          {
-            code: 'assets_not_embedded',
-            detail: document.assets.map((asset) => asset.path).join(', '),
-          },
-        ]
-      : []
-  },
-  write(document: VectorDocument, options: WriteOptions = {}): Promise<Blob> {
+  capabilities: defineCapabilities('native', { assets: 'converted' }),
+  write(document: VectorDocument, options: WriteOptions = {}): Promise<WriteResult> {
     const manifest = createManifest(document, { hasThumbnail: options.thumbnail !== undefined })
     const entries: Zippable = {
       [vexEntries.manifest]: encodeText(JSON.stringify(manifest, null, 2)),
@@ -36,6 +23,12 @@ export const vexWriter: DocumentWriter = {
       entries[vexEntries.thumbnail] = [options.thumbnail, { level: 0 }]
     }
     const bytes = zipSync(entries, { level: 6 })
-    return Promise.resolve(bytesToBlob(bytes, VEX_MIME_TYPE))
+    return Promise.resolve({
+      blob: bytesToBlob(bytes, VEX_MIME_TYPE),
+      processedObjects: countNodes(document),
+      skippedObjects: 0,
+      transformations: [],
+      validation: 'passed',
+    })
   },
 }
