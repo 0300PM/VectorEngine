@@ -1,97 +1,92 @@
 # PROJECT PLAN — VECTOR ENGINE
 
-## 1. Wizja
+## 1. Vision
 
-Vector Engine to modułowy edytor i silnik grafiki wektorowej działający w przeglądarce.
-Interfejs użytkownika powstaje w Vue 3 + TypeScript + Tailwind, a krytyczne wydajnościowo
-rasteryzowanie wykonuje silnik napisany w C++23 skompilowany do WebAssembly.
-Rdzeń modelu dokumentu jest niezależny od frameworka i od silnika renderującego, dzięki czemu
-ten sam dokument można renderować, walidować, migrować i eksportować w wielu kontekstach
-(przeglądarka, testy, narzędzia wiersza poleceń).
+Vector Engine is a modular vector graphics editor and rendering engine that runs in the browser.
 
-Cele nadrzędne:
+The user interface is built with Vue 3, TypeScript, and Tailwind CSS, while performance-critical rasterization is handled by an engine written in C++23 and compiled to WebAssembly.
 
-- przewidywalny, wersjonowany model dokumentu,
-- natywny format projektu `.vex` z pełną informacją o zawartości,
-- brak cichej utraty danych: każda niewspierana cecha jest raportowana,
-- interfejs dostępny w języku polskim i angielskim,
-- czytelny kod bez komentarzy, w którym intencję wyraża nazewnictwo i struktura.
+The core document model is independent of both the UI framework and the rendering engine. This allows the same document to be rendered, validated, migrated, and exported in multiple contexts, including the browser, tests, and command-line tools.
 
-## 2. Architektura
+Primary objectives:
 
-### 2.1 Stos technologiczny
+- A predictable, versioned document model.
+- A native `.vex` project format that preserves complete document information.
+- No silent data loss: every unsupported feature must be reported.
+- A user interface available in Polish and English.
+- Clean code without comments, where intent is expressed through naming and structure.
 
-| Warstwa         | Technologia                                     |
-| --------------- | ----------------------------------------------- |
-| UI              | Vue 3 (Composition API, `<script setup>`)       |
-| Stan aplikacji  | Pinia, composables                              |
-| Stylowanie      | Tailwind CSS 4                                  |
-| Język aplikacji | TypeScript (tryb strict)                        |
-| Silnik          | C++23 → WebAssembly (Emscripten)                |
-| Fallback        | Canvas 2D w TypeScript                          |
-| Walidacja       | Zod                                             |
-| Kontener `.vex` | ZIP (fflate)                                    |
-| Jakość          | ESLint, Prettier, Vitest, CTest, GitHub Actions |
+## 2. Architecture
 
-### 2.2 Warstwy modułowe
+### 2.1 Technology Stack
 
-```
+| Layer | Technology |
+|---|---|
+| UI | Vue 3 (Composition API, `<script setup>`) |
+| Application State | Pinia, composables |
+| Styling | Tailwind CSS 4 |
+| Application Language | TypeScript (strict mode) |
+| Engine | C++23 → WebAssembly (Emscripten) |
+| Fallback | Canvas 2D in TypeScript |
+| Validation | Zod |
+| `.vex` Container | ZIP (fflate) |
+| Quality Assurance | ESLint, Prettier, Vitest, CTest, GitHub Actions |
+
+### 2.2 Modular Layers
+
+```text
 src/
-  core/      model dokumentu, geometria, kolory, scena renderowania, historia — bez zależności od frameworka
-  engine/    interfejs silnika, Canvas2DEngine, WasmEngine i protokół binarny
-  formats/   adaptery formatów: .vex, document-json, legacy-scene, eksport rastrowy
-  app/       stany Pinia, serwisy, dokument przykładowy
-  ui/        komponenty Vue i composables
-  i18n/      słowniki PL/EN
+  core/      document model, geometry, colors, rendering scene, history — no framework dependencies
+  engine/    engine interface, Canvas2DEngine, WasmEngine, and binary protocol
+  formats/   format adapters: .vex, document-json, legacy-scene, raster export
+  app/       Pinia stores, services, sample document
+  ui/        Vue components and composables
+  i18n/      PL/EN dictionaries
 cpp/
-  include/vex/  nagłówki silnika (geometria, flatten, stroke, rasteryzator, protokół, C API)
-  src/          implementacja
-  tests/        testy natywne (CTest)
+  include/vex/  engine headers (geometry, flattening, stroke, rasterizer, protocol, C API)
+  src/          implementation
+  tests/        native tests (CTest)
 ```
 
-Reguły zależności (egzekwowane przez ESLint):
+Dependency rules, enforced through ESLint:
 
-- `core` nie importuje niczego z warstw wyższych ani z Vue/Pinia/vue-i18n,
-- `engine` zależy wyłącznie od `core`,
-- `formats` zależy od `core` i `engine`,
-- `app` nie importuje komponentów `ui`.
+- `core` must not import anything from higher-level layers or from Vue, Pinia, or vue-i18n.
+- `engine` depends exclusively on `core`.
+- `formats` depends on `core` and `engine`.
+- `app` must not import UI components from `ui`.
 
-### 2.3 Silnik C++ / WebAssembly
+### 2.3 C++ / WebAssembly Engine
 
-Silnik otrzymuje scenę jako płaski bufor `Float64Array` (wersjonowany protokół), spłaszcza
-krzywe Béziera w przestrzeni lokalnej z tolerancją dopasowaną do skali transformacji,
-rasteryzuje wypełnienia regułą nonzero z antyaliasingiem opartym na akumulacji pola pokrycia
-oraz buduje obrysy jako sumę czworokątów segmentów i okrągłych połączeń. Wynik to bufor RGBA8
-ze zwykłą (niepremultiplikowaną) alfą.
+The engine receives the scene as a flat `Float64Array` buffer using a versioned protocol. It flattens Bézier curves in local space, with a tolerance adjusted to the transformation scale, rasterizes fills using the nonzero winding rule with coverage-accumulation-based antialiasing, and constructs strokes as a union of segment quadrilaterals and round joins.
 
-Jeśli artefakty WebAssembly są niedostępne, aplikacja używa silnika Canvas 2D i informuje o tym
-użytkownika w linii statusu.
+The output is an RGBA8 buffer using non-premultiplied alpha.
 
-## 3. Format danych
+If the WebAssembly artifacts are unavailable, the application falls back to the Canvas 2D engine and informs the user through the status bar.
 
-### 3.1 Natywny format `.vex`
+## 3. Data Format
 
-`.vex` jest archiwum ZIP o ustalonej strukturze:
+### 3.1 Native `.vex` Format
 
-```
-manifest.json      wersja formatu, generator, data utworzenia, lista wpisów
-document.json      dokument w aktualnej wersji schematu
-assets/            zasoby binarne (obrazy, fonty, profile kolorów)
-previews/          miniatury podglądu
+The `.vex` format is a ZIP archive with a predefined structure:
+
+```text
+manifest.json      format version, generator, creation date, entry list
+document.json      document using the current schema version
+assets/            binary resources (images, fonts, color profiles)
+previews/          preview thumbnails
 ```
 
-Czytnik raportuje ostrzeżenia dla nieznanych wpisów, brakujących zasobów i brakującego manifestu,
-a zapis ostrzega, gdy dokument odwołuje się do zasobów, które nie są osadzane.
+The reader reports warnings for unknown entries, missing resources, and a missing manifest. The writer issues a warning when the document references resources that are not embedded in the archive.
 
-### 3.2 Adaptery formatów
+### 3.2 Format Adapters
 
-Rejestr formatów wybiera czytnik po rozszerzeniu oraz po zawartości pliku. Każdy adapter
-zwraca dokument wraz z listą ostrzeżeń (`FormatWarning`), a każdy zapis może zostać poprzedzony
-inspekcją (`inspect`) zgłaszającą potencjalne straty przed eksportem.
+The format registry selects a reader based on the file extension and file contents.
 
-### 3.3 Model dokumentu
+Each adapter returns a document together with a list of warnings (`FormatWarning`). Before any export, a write operation can be preceded by an inspection step (`inspect`) that identifies potential data loss.
 
-```
+### 3.3 Document Model
+
+```text
 VectorDocument { schemaVersion, id, name, width, height, unit, colorSpace, background,
                  layers[], assets[], metadata, exportSettings }
 Layer          { id, name, visible, locked, opacity, children[] }
@@ -101,11 +96,12 @@ Matrix2D       { a, b, c, d, e, f }
 PaintStyle     { fill?: { color }, stroke?: { color, width } }
 ```
 
-Schemat jest wersjonowany; dokumenty starszych wersji przechodzą przez migracje, a niepoprawne
-dane są zgłaszane jako lista problemów ze ścieżką i przyczyną.
+The schema is versioned. Documents created with older versions are processed through migration routines, while invalid data is reported as a list of issues containing the affected path and the reason for each issue.
 
-### 3.4 Zasada braku cichej utraty danych
+### 3.4 No Silent Data Loss
 
-Tekst, obrazy i reguła wypełnienia evenodd są obecnie poza możliwościami silnika rasteryzującego.
-Takie węzły pozostają w dokumencie, a interfejs wyświetla listę elementów pominiętych podczas
-renderowania. Eksport do formatów bez kanału alfa ostrzega o spłaszczeniu przezroczystości.
+Text, images, and the even-odd fill rule are currently beyond the capabilities of the rasterization engine.
+
+Such nodes remain in the document, and the UI displays a list of elements omitted during rendering.
+
+When exporting to formats without an alpha channel, the application warns the user that transparency will be flattened.
