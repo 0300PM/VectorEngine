@@ -83,6 +83,20 @@ export const fileExtension = (fileName: string): string => {
 export const hasExtension = (fileName: string, extensions: readonly string[]): boolean =>
   extensions.includes(fileExtension(fileName))
 
+export const fileStem = (fileName: string): string => {
+  const base = fileName.slice(fileName.lastIndexOf('/') + 1)
+  const index = base.lastIndexOf('.')
+  return index <= 0 ? base : base.slice(0, index)
+}
+
+export const slugify = (text: string): string =>
+  text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'document'
+
 export const decodeText = (bytes: Uint8Array): string => new TextDecoder().decode(bytes)
 
 export const encodeText = (text: string): Uint8Array => new TextEncoder().encode(text)

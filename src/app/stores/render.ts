@@ -72,8 +72,11 @@ export const useRenderStore = defineStore('render', () => {
     }
   }
 
-  const renderAt = async (size: PixelSize): Promise<RenderResult> =>
-    (await renderScene(scaleRenderScene(scene.value, size))).result
+  const render = async (target: RenderScene): Promise<RenderResult> =>
+    (await renderScene(target)).result
+
+  const renderAt = (size: PixelSize): Promise<RenderResult> =>
+    render(scaleRenderScene(scene.value, size))
 
   watch(scene, () => void renderPreview(), { immediate: true })
   watch(preference, (value) => {
@@ -90,6 +93,7 @@ export const useRenderStore = defineStore('render', () => {
     scene,
     unsupported,
     renderPreview,
+    render,
     renderAt,
   }
 })

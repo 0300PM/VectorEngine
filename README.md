@@ -13,7 +13,13 @@ with a Canvas 2D fallback written in TypeScript. The project follows the plan de
 - SVG import/export with an injectable XML parser, PDF export with structural self-validation
 - Compatibility analysis before every export and a downloadable loss report after it
   (see [docs/FORMATS.md](docs/FORMATS.md) for the capability matrix and documented limitations)
-- Raster export to PNG, JPEG and WebP at scale presets or custom dimensions
+- Raster export to PNG, JPEG, WebP and TIFF at scale presets or custom dimensions; in-house PNG,
+  TIFF and multi-size ICO writers
+- Export sets with presets (web logo, raster scales, favicon): several formats, sizes, backgrounds
+  and paddings from one document or from selected objects, planned and validated before running
+- Batch conversion queue with concurrency limit, per-file states, duplicate detection, name
+  conflict policies, folder structure and a ZIP with a session report
+- Asset Studio for favicon and app icon sets with manifest, HTML snippet and readability checks
 - C++/WebAssembly rasteriser with analytic anti-aliasing, nonzero winding and round strokes
 - C++ path operations (length, exact bounds, self-intersections, reversal, simplification)
   exposed through the same C API and verb encoding
@@ -63,8 +69,9 @@ loaded at runtime from `${BASE_URL}wasm/`.
 ```
 src/core      framework-free domain: geometry, colours, document model, render scene, history
 src/engine    VectorEngine interface, Canvas2DEngine, WasmEngine and the render protocol
-src/formats   .vex container, document JSON, legacy scene import, SVG, PDF, raster encoding,
-              compatibility analysis and conversion reports
+src/formats   .vex container, document JSON, legacy scene import, SVG, PDF, raster encoders
+              (PNG, TIFF, ICO), compatibility analysis and conversion reports, export sets and
+              presets, batch queue and packaging, Asset Studio generators
 src/app       Pinia stores and services that orchestrate core, engine and formats
 src/ui        Vue components and composables
 src/i18n      message catalogues (en, pl)
@@ -188,13 +195,33 @@ assets as `converted` because payloads are referenced but not embedded yet.
 
 ## Export formats and compatibility
 
-Writers: `.vex`, document JSON, SVG, PDF and raster PNG/JPEG/WebP; readers: `.vex`, document
-JSON, legacy scene JSON and SVG. Each writer declares its capabilities per document feature. The
+Writers: `.vex`, document JSON, SVG, PDF and raster PNG/JPEG/WebP/TIFF plus multi-size ICO;
+readers: `.vex`, document JSON, legacy scene JSON and SVG. Each writer declares its capabilities per document feature. The
 files panel shows the compatibility analysis for the selected target (`faithful`, `lossy` or
 `blocked` with per-feature severities and remedies) before saving, and the conversion report
 (objects written and skipped, transformations applied, output validation) afterwards; both the
 files panel and the raster export panel offer the report as a JSON download. The capability
 matrix and the documented limitations of every adapter live in [docs/FORMATS.md](docs/FORMATS.md).
+
+### Export sets, batch conversion and Asset Studio
+
+- **Export sets** (`src/formats/export-set`): a preset is a list of variants (format, size mode,
+  background, padding, recolour, suffix or file name). The plan shown in the panel resolves file
+  names, pixel sizes, compatibility verdicts and problems (duplicate names, invalid or oversized
+  sizes, blocked conversions, empty selection) before anything is rendered. Scope can be the whole
+  document or selected objects, cropped to their rendered bounds. Custom presets are stored in
+  `localStorage`.
+- **Batch conversion** (`src/formats/batch`): drop files or folders; every file is read through
+  the format registry and converted with the current export set, independently and with a
+  concurrency limit. Jobs can be paused, reordered, cancelled and retried; duplicates (by content
+  hash) are skipped; the ZIP keeps the folder structure on request, resolves name conflicts
+  (rename / overwrite / skip) and contains `batch-report.json`.
+- **Asset Studio** (`src/formats/asset-studio`): favicon set (ICO 16/32/48, PNG 180/192/512, SVG,
+  `site.webmanifest`, HTML snippet) and app icon set (48–1024 px, optional monochrome and dark
+  variants, `icons.json`) with required-file and 16 px readability checks.
+
+Planned next (P1, part 2): artboards, extended geometry operations (offset, boolean operations) and
+a command-line interface built on the same export pipeline.
 
 ## Conventions
 

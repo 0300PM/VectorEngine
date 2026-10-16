@@ -20,17 +20,17 @@ Primary objectives:
 
 ### 2.1 Technology Stack
 
-| Layer | Technology |
-|---|---|
-| UI | Vue 3 (Composition API, `<script setup>`) |
-| Application State | Pinia, composables |
-| Styling | Tailwind CSS 4 |
-| Application Language | TypeScript (strict mode) |
-| Engine | C++23 → WebAssembly (Emscripten) |
-| Fallback | Canvas 2D in TypeScript |
-| Validation | Zod |
-| `.vex` Container | ZIP (fflate) |
-| Quality Assurance | ESLint, Prettier, Vitest, CTest, GitHub Actions |
+| Layer                | Technology                                      |
+| -------------------- | ----------------------------------------------- |
+| UI                   | Vue 3 (Composition API, `<script setup>`)       |
+| Application State    | Pinia, composables                              |
+| Styling              | Tailwind CSS 4                                  |
+| Application Language | TypeScript (strict mode)                        |
+| Engine               | C++23 → WebAssembly (Emscripten)                |
+| Fallback             | Canvas 2D in TypeScript                         |
+| Validation           | Zod                                             |
+| `.vex` Container     | ZIP (fflate)                                    |
+| Quality Assurance    | ESLint, Prettier, Vitest, CTest, GitHub Actions |
 
 ### 2.2 Modular Layers
 

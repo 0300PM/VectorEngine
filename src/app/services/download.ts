@@ -10,10 +10,4 @@ export const downloadBlob = (blob: Blob, fileName: string): void => {
   window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS)
 }
 
-export const slugify = (text: string): string =>
-  text
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'document'
+export { slugify } from '@/formats'

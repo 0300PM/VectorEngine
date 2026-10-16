@@ -36,27 +36,27 @@ injected XML parser).
 
 ## Capability matrix
 
-| Feature               | `.vex` / JSON | SVG       | PDF         | PNG / WebP  | JPEG        |
-| --------------------- | ------------- | --------- | ----------- | ----------- | ----------- |
-| rectangle / ellipse   | native        | native    | native      | native      | native      |
-| path                  | native        | native    | native      | native      | native      |
-| text                  | native        | native    | converted   | unsupported | unsupported |
-| image                 | native        | converted | unsupported | unsupported | unsupported |
-| group                 | native        | native    | native      | native      | native      |
-| fill / stroke         | native        | native    | native      | native      | native      |
-| evenodd               | native        | native    | native      | converted   | converted   |
-| cornerRadius          | native        | native    | native      | native      | native      |
-| nodeOpacity           | native        | native    | native      | native      | native      |
-| groupOpacity          | native        | native    | converted   | converted   | converted   |
-| colorAlpha            | native        | native    | native      | native      | dropped     |
-| transparentBackground | native        | native    | native      | native      | dropped     |
-| layers                | native        | converted | dropped     | dropped     | dropped     |
-| hiddenLayers          | native        | converted | dropped     | dropped     | dropped     |
-| lockedLayers          | native        | converted | dropped     | dropped     | dropped     |
-| physicalUnits         | native        | native    | native      | converted   | converted   |
-| displayP3             | native        | converted | converted   | converted   | converted   |
-| assets                | converted     | converted | dropped     | dropped     | dropped     |
-| metadata              | native        | converted | native      | dropped     | dropped     |
+| Feature               | `.vex` / JSON | SVG       | PDF         | PNG / WebP / TIFF / ICO | JPEG        |
+| --------------------- | ------------- | --------- | ----------- | ----------------------- | ----------- |
+| rectangle / ellipse   | native        | native    | native      | native                  | native      |
+| path                  | native        | native    | native      | native                  | native      |
+| text                  | native        | native    | converted   | unsupported             | unsupported |
+| image                 | native        | converted | unsupported | unsupported             | unsupported |
+| group                 | native        | native    | native      | native                  | native      |
+| fill / stroke         | native        | native    | native      | native                  | native      |
+| evenodd               | native        | native    | native      | converted               | converted   |
+| cornerRadius          | native        | native    | native      | native                  | native      |
+| nodeOpacity           | native        | native    | native      | native                  | native      |
+| groupOpacity          | native        | native    | converted   | converted               | converted   |
+| colorAlpha            | native        | native    | native      | native                  | dropped     |
+| transparentBackground | native        | native    | native      | native                  | dropped     |
+| layers                | native        | converted | dropped     | dropped                 | dropped     |
+| hiddenLayers          | native        | converted | dropped     | dropped                 | dropped     |
+| lockedLayers          | native        | converted | dropped     | dropped                 | dropped     |
+| physicalUnits         | native        | native    | native      | converted               | converted   |
+| displayP3             | native        | converted | converted   | converted               | converted   |
+| assets                | converted     | converted | dropped     | dropped                 | dropped     |
+| metadata              | native        | converted | native      | dropped                 | dropped     |
 
 "converted" means the information survives in another form (documented below); "dropped" means it
 is removed and reported; "unsupported" means the affected objects are skipped and reported. Raster
@@ -143,14 +143,106 @@ Files: `src/formats/pdf`. Writer only; no external dependency except `fflate` fo
   not a full PDF parse; the output has additionally been verified with external readers
   (pypdf in strict mode, MuPDF) during development.
 
-## Raster (PNG, JPEG, WebP)
+## Raster (PNG, JPEG, WebP, TIFF, ICO)
 
-Files: `src/formats/raster`. Documents are rendered with the active engine and encoded by the
-browser (`canvas.toBlob`) or `@napi-rs/canvas` in tests. Text and images are not rendered by the
-engines yet and are reported as unsupported; even-odd fills are rendered with the non-zero rule
-(`fill_rule_converted`); JPEG flattens transparency onto white (`alpha_flattened`); physical
-units are converted to pixels at the document DPI. Hidden layers are omitted, visible layers
-flattened.
+Files: `src/formats/raster`. Documents are rendered with the active engine into straight
+(non-premultiplied) RGBA pixels; the encoders then produce the file. Text and images are not
+rendered by the engines yet and are reported as unsupported; even-odd fills are rendered with the
+non-zero rule (`fill_rule_converted`); physical units are converted to pixels at the document DPI
+(or the DPI of the export variant). Hidden layers are omitted, visible layers flattened. Raster
+sizes are limited to 16 384 px per side and 50 megapixels per image (`size_too_large` in export
+plans) to keep memory bounded.
+
+| Format | Encoder                                   | Notes                                                                                                                                                                                                                                                |
+| ------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PNG    | in-house (`png.ts`, zlib via `fflate`)    | 8-bit RGBA, filter type 0, single `IDAT`, `pHYs` chunk with the export DPI. Deterministic output, works outside the browser. Files are somewhat larger than adaptive-filter encoders.                                                                |
+| JPEG   | browser `canvas.toBlob` / `convertToBlob` | Transparency is flattened onto white (`alpha_flattened`); quality 0.1–1.                                                                                                                                                                             |
+| WebP   | browser encoder                           | Lossy with quality 0.1–1; availability depends on the browser. Not available in Node tests without a canvas implementation.                                                                                                                          |
+| TIFF   | in-house (`tiff.ts`)                      | Baseline TIFF 6.0, little-endian, uncompressed, 8-bit RGBA (`ExtraSamples = 2`, unassociated alpha), one strip, `XResolution`/`YResolution` in dpi. No compression, no multi-page, no CMYK or 16-bit; large images produce large files (4 bytes/px). |
+| ICO    | in-house (`ico.ts`, PNG entries)          | 1–65535 images, each ≤ 256 × 256 px with unique sizes, stored as PNG (Windows Vista+ and all current browsers; very old readers that expect BMP entries are not supported). Multi-size ICOs are produced by export sets / Asset Studio.              |
+
+Capabilities: PNG, WebP, TIFF and the composite ICO target share the PNG column of the matrix;
+JPEG additionally drops colour alpha and transparent backgrounds. Encoders validate buffer sizes
+and reject invalid dimensions; the ICO writer rejects oversized or duplicated sizes.
+Outputs were additionally verified with ImageMagick (`identify`, pixel comparison PNG ↔ TIFF)
+during development.
+
+## Export sets and presets
+
+Files: `src/formats/export-set`. An `ExportSet` is a list of variants plus a scope, evaluated
+against the same document model and adapters as single-file export:
+
+- **Variant**: `format` (`svg`, `pdf`, `png`, `jpeg`, `webp`, `tiff`, `ico`), `size`
+  (`original`, `scale × factor`, `fixed` width × height with uniform "contain" fitting, or
+  `sizes` for ICO), `background` (`document`, `transparent`, `color`), `padding` (fraction of the
+  shorter side, ≤ 0.45), optional `recolor` (every fill and stroke gets one colour, images are
+  left untouched), `quality` (JPEG/WebP), `dpi`, `suffix` or an explicit `fileName`.
+- **Scope**: the whole document or a set of node ids; the selection is cropped to the union of
+  the rendered bounds of those nodes (stroke width included) plus a proportional margin. Nodes
+  without fill or stroke have no bounds and lead to `empty_scope`.
+- **Plan** (`planExportSet`): resolves file names (`<base><suffix>.<ext>`, sanitised), pixel
+  sizes, a compatibility report per variant (using the writer's capabilities, the raster target
+  or the ICO target) and problems: `unsupported_format`, `invalid_size`, `size_too_large`,
+  `ico_size_out_of_range`, `duplicate_file_name` (case-insensitive), `empty_scope`, `blocked`.
+  A set only runs when the plan has no problems.
+- **Run** (`runExportSet`): vector variants are framed at document level (`frameDocument`,
+  a translated/scaled wrapper group), raster variants render the scene once per variant and fit
+  it into the target pixels (`fitRenderScene`); ICO renders every size separately. Each output
+  carries a `ConversionReport`; failures are collected per variant, an `AbortSignal` cancels the
+  remaining variants. Padding and background are applied identically to vector and raster outputs.
+- **Presets**: built-in `web-logo` (SVG, PNG 256/512/1024 transparent, PDF), `raster-scales`
+  (PNG 1×/2×/3×) and `favicon`; custom presets are validated with a Zod schema and stored in
+  `localStorage` (`vector-engine.export-presets`). The application downloads a single file directly
+  (with its report) and several files as a ZIP with `export-report.json`.
+
+Limitations: no artboards yet (one document = one page), fixed sizes always use "contain"
+(no cropping/cover mode), `recolor` ignores images and gradients, the SVG/PDF writers keep their own
+documented limits.
+
+## Batch conversion
+
+Files: `src/formats/batch`. `BatchQueue` is a framework-free queue of independent jobs:
+
+- Each job has a unique id, the input bytes, a content hash (FNV-1a + length), a state
+  (`pending`, `running`, `done`, `done_with_warnings`, `failed`, `cancelled`, `skipped`), outputs,
+  warnings and timestamps. Files whose content hash was already queued are marked `skipped` with
+  `duplicateOf` (can be disabled or retried).
+- Jobs run with a configurable concurrency limit (1–8); the queue can be paused, resumed,
+  reordered, jobs cancelled (running jobs via `AbortSignal`), retried or removed. A failing or
+  cancelled job never affects the others.
+- The processor (`createBatchProcessor`) reads the file through the `FormatRegistry` (extension and
+  content sniffing), then runs the current export set; import warnings and partial failures mark
+  the job `done_with_warnings`, unreadable or unsupported files mark it `failed`.
+- Packaging (`createBatchArchive`): outputs are placed flat or under their original folder
+  (`keepStructure`), name conflicts are resolved with `rename` (`name (2).ext`), `overwrite` or
+  `skip`, and a `batch-report.json` session report (`reportVersion: 1`, per-job states, timings,
+  per-output compatibility issues and transformations, dropped files) is added to the ZIP.
+
+Limitations: inputs and outputs stay in memory until the queue is cleared (the browser tab is the
+bound); the export set used by a job is the one selected when the job starts; the queue is not
+persisted across reloads; folders are read through `webkitdirectory` / `webkitGetAsEntry`, which
+all current browsers support but which is not part of a formal standard.
+
+## Asset Studio
+
+Files: `src/formats/asset-studio`. Both generators are thin layers over export sets, so they share
+the rendering, framing, background and recolour pipeline.
+
+- **Favicon set**: `favicon.ico` (16/32/48), `apple-touch-icon.png` (180), `icon-192.png`,
+  `icon-512.png`, optional `icon.svg`, `site.webmanifest` (name, icons, theme colour) and
+  `favicon.html` with the `<link>`/`<meta>` snippet. Missing required files are reported
+  (`missing_file`).
+- **App icon set**: `icon-<size>.png` for 48–1024 px (configurable sizes), optional monochrome
+  (`recolor`, transparent background) and dark (`color` background, optional recolour) variants,
+  plus `icons.json` describing every file.
+- **Checks** (`checkIconReadability`): the icon is rendered at 16 px; `icon_sparse` when less than
+  5 % of the pixels are opaque on a transparent background, `icon_overflow` when more than 98 %
+  are, `strokes_too_thin` when a stroke is thinner than one device pixel at that size. These are
+  heuristics meant to catch obviously broken icons, not a substitute for visual review.
+
+Limitations: no maskable/adaptive-icon safe-zone validation beyond the padding option, no
+platform-specific bundles (Xcode asset catalogs, Android mipmap folders) and no rounded-corner
+masking; the SVG icon is the plain document export.
 
 ## `.vex` and document JSON
 

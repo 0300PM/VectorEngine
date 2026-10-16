@@ -9,13 +9,22 @@ import {
   type FormatCapabilities,
 } from '../compatibility/features'
 import type { Transformation } from '../compatibility/report'
+import { bytesToBlob } from '../types'
+import { encodePng } from './png'
+import { encodeTiff } from './tiff'
 
-export const rasterFormats = ['png', 'jpeg', 'webp'] as const
+export * from './binary'
+export * from './ico'
+export * from './png'
+export * from './tiff'
+
+export const rasterFormats = ['png', 'jpeg', 'webp', 'tiff'] as const
 export type RasterFormat = (typeof rasterFormats)[number]
 
 export type RasterEncodeOptions = {
   readonly format: RasterFormat
   readonly quality: number
+  readonly dpi?: number
 }
 
 type RasterFormatInfo = {
@@ -29,6 +38,7 @@ export const rasterFormatInfo: Readonly<Record<RasterFormat, RasterFormatInfo>> 
   png: { mimeType: 'image/png', extension: 'png', supportsAlpha: true, supportsQuality: false },
   jpeg: { mimeType: 'image/jpeg', extension: 'jpg', supportsAlpha: false, supportsQuality: true },
   webp: { mimeType: 'image/webp', extension: 'webp', supportsAlpha: true, supportsQuality: true },
+  tiff: { mimeType: 'image/tiff', extension: 'tiff', supportsAlpha: true, supportsQuality: false },
 }
 
 export const MIN_QUALITY = 0.1
@@ -56,6 +66,7 @@ export const rasterCapabilities: Readonly<Record<RasterFormat, FormatCapabilitie
     transparentBackground: 'dropped',
   }),
   webp: defineCapabilities('native', rasterBaseCapabilities),
+  tiff: defineCapabilities('native', rasterBaseCapabilities),
 }
 
 export const rasterTarget = (format: RasterFormat): CapabilityTarget => ({
@@ -64,6 +75,16 @@ export const rasterTarget = (format: RasterFormat): CapabilityTarget => ({
   capabilities: rasterCapabilities[format],
   medium: 'raster',
 })
+
+export const ICO_FORMAT_ID = 'ico'
+export const ICO_MIME_TYPE = 'image/x-icon'
+
+export const icoTarget: CapabilityTarget = {
+  id: ICO_FORMAT_ID,
+  label: 'ICO',
+  capabilities: defineCapabilities('native', rasterBaseCapabilities),
+  medium: 'raster',
+}
 
 export const analyzeRasterExport = (document: VectorDocument, format: RasterFormat) =>
   analyzeCompatibility(document, rasterTarget(format))
@@ -102,11 +123,33 @@ const surfaceToBlob = (
   })
 }
 
+const encodeInHouse = (result: RenderResult, options: RasterEncodeOptions): Blob | undefined => {
+  const physical = options.dpi ? { dpi: options.dpi } : {}
+  switch (options.format) {
+    case 'png':
+      return bytesToBlob(
+        encodePng(result.width, result.height, result.pixels, physical),
+        rasterFormatInfo.png.mimeType,
+      )
+    case 'tiff':
+      return bytesToBlob(
+        encodeTiff(result.width, result.height, result.pixels, physical),
+        rasterFormatInfo.tiff.mimeType,
+      )
+    default:
+      return undefined
+  }
+}
+
 export const encodeRenderResult = async (
   result: RenderResult,
   options: RasterEncodeOptions,
   createSurface: SurfaceFactory,
 ): Promise<Blob> => {
+  const inHouse = encodeInHouse(result, options)
+  if (inHouse) {
+    return inHouse
+  }
   const info = rasterFormatInfo[options.format]
   const surface = createSurface(result.width, result.height)
   const context = surface.getContext('2d')

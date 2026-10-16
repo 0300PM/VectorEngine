@@ -1,3 +1,4 @@
+export * from './derive'
 export * from './factory'
 export * from './identifiers'
 export * from './migrations'

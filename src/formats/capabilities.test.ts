@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createDefaultFormatRegistry,
   documentFeatures,
+  icoTarget,
+  rasterFormats,
   rasterTarget,
   type FeatureSupport,
 } from '@/formats'
@@ -62,17 +64,13 @@ const nonNative: Readonly<
 
 describe('capability matrix (docs/FORMATS.md)', () => {
   const registry = createDefaultFormatRegistry()
-  const targets = [
-    ...registry.writers,
-    rasterTarget('png'),
-    rasterTarget('jpeg'),
-    rasterTarget('webp'),
-  ]
+  const targets = [...registry.writers, ...rasterFormats.map(rasterTarget), icoTarget]
+  const documentedAs = (id: string): string => (['webp', 'tiff', 'ico'].includes(id) ? 'png' : id)
 
   it.each(targets.map((target) => [target.id, target] as const))(
     '%s matches the documented matrix',
     (id, target) => {
-      const expected = nonNative[id === 'webp' ? 'png' : id]
+      const expected = nonNative[documentedAs(id)]
       expect(expected, `missing documentation row for ${id}`).toBeDefined()
       for (const feature of documentFeatures) {
         expect(target.capabilities[feature], `${id}.${feature}`).toBe(
