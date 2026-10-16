@@ -20,8 +20,8 @@ Vector Engine is a JSON-driven graphics engine with a C++23 rendering core, WebA
 
 Requirements:
 
-- Node.js 20 or newer
-- npm 10 or newer
+- Node.js 24
+- npm 11
 
 ```bash
 npm install
@@ -117,10 +117,12 @@ vector-engine/
 ├── engine/tests             Catch2 tests
 ├── schemas                  Versioned JSON Schema
 ├── examples                 Example scenes
-├── docs                     Architecture and format documentation
+├── docs                     Architecture and deployment documentation
+├── scripts                  Build-time deployment verification
 ├── CMakeLists.txt           Native and WebAssembly entry point
 ├── CMakePresets.json        Reproducible build presets
-└── package.json             Web workspace scripts
+├── vercel.json              Vercel build, routing, caching, and headers
+└── package.json             Workspace and deployment scripts
 ```
 
 ## Output behavior

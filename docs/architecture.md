@@ -17,7 +17,7 @@ The UI does not depend on C++ implementation details. It communicates through th
 
 ### UI
 
-The Vue application owns editor state, preview controls, import and download flows, export settings, responsive navigation, and status messages. Rendering work is debounced so rapid editor updates do not create an unbounded queue.
+The Vue application owns editor state, preview controls, import and download flows, export settings, responsive navigation, and status messages. Rendering work is debounced so rapid editor updates do not create an unbounded queue. Ajv compiles the canonical JSON Schema into a checked-in standalone validator module during development and production builds, avoiding runtime code generation.
 
 ### Adapter
 

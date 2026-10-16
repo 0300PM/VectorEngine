@@ -2,13 +2,17 @@
   "name": "vector-engine",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "npm@10.8.2",
+  "packageManager": "npm@11.17.0",
   "workspaces": [
     "apps/web"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @vector-engine/web --",
-    "build": "npm run build --workspace @vector-engine/web",
+    "build": "npm run verify:wasm && npm run build --workspace @vector-engine/web && npm run verify:deployment",
+    "vercel-build": "npm run build",
+    "verify:wasm": "node scripts/verify-wasm.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs",
+    "generate:schema": "node scripts/generate-validator.mjs",
     "test": "npm run test --workspace @vector-engine/web",
     "test:e2e": "npm run test:e2e --workspace @vector-engine/web --",
     "typecheck": "npm run typecheck --workspace @vector-engine/web",
@@ -19,6 +23,10 @@
     "wasm:build": "cmake --build --preset wasm-release"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": "24.x"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "vue-demi@0.14.10": true
   }
 }

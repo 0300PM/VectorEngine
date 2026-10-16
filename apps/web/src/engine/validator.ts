@@ -1,12 +1,10 @@
-import Ajv2020, { type ErrorObject } from 'ajv/dist/2020'
-import sceneSchema from '../../../../schemas/vector-scene.schema.json'
+import type { ErrorObject } from 'ajv'
 import type { ValidationIssue, ValidationResult } from '@/types/engine'
+import validateSchema from './generated/sceneValidator.js'
 import type { SceneObject, VectorScene } from '@/types/scene'
 import { engineLimits } from './limits'
 import { isValidPathData } from './pathValidator'
 
-const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false })
-const validateSchema = ajv.compile(sceneSchema)
 const pathDataPattern = /^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+$/
 
 const pathFromError = (error: ErrorObject): string => {

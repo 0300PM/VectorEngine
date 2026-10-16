@@ -10,7 +10,7 @@ cmake --preset wasm-release
 cmake --build --preset wasm-release
 ```
 
-The post-build step copies the generated JavaScript loader and WebAssembly binary into `apps/web/public/wasm`.
+The post-build step copies the generated JavaScript loader and WebAssembly binary into `apps/web/public/wasm`. The release target disables dynamic JavaScript execution so the loader works with the deployment Content Security Policy without unrestricted `unsafe-eval`.
 
 ## Public boundary
 

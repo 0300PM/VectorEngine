@@ -3,6 +3,8 @@ import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  base: '/',
+  publicDir: 'public',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -15,7 +17,7 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -27,7 +29,6 @@ export default defineConfig({
             '@codemirror/state',
             '@codemirror/view',
           ],
-          validation: ['ajv'],
           framework: ['vue', 'pinia'],
         },
       },
