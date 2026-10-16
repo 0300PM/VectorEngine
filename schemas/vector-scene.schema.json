@@ -1,0 +1,550 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vector.engine/schemas/vector-scene.schema.json",
+  "title": "Vector Engine Scene",
+  "type": "object",
+  "required": ["version", "document", "objects"],
+  "properties": {
+    "version": {
+      "const": "1.0"
+    },
+    "document": {
+      "$ref": "#/$defs/document"
+    },
+    "objects": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/object"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "coordinate": {
+      "type": "number",
+      "minimum": -1000000,
+      "maximum": 1000000
+    },
+    "size": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "positiveSize": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000000
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^(none|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{4}|#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{8})$"
+    },
+    "document": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16384
+        },
+        "unit": {
+          "enum": ["px", "pt", "mm", "cm", "in"]
+        },
+        "background": {
+          "$ref": "#/$defs/color"
+        }
+      },
+      "additionalProperties": false
+    },
+    "transform": {
+      "type": "object",
+      "properties": {
+        "translateX": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "translateY": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "rotate": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "scaleX": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "scaleY": {
+          "type": "number",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "skewX": {
+          "type": "number",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "skewY": {
+          "type": "number",
+          "minimum": -89,
+          "maximum": 89
+        },
+        "originX": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "originY": {
+          "$ref": "#/$defs/coordinate"
+        }
+      },
+      "additionalProperties": false
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y": {
+          "$ref": "#/$defs/coordinate"
+        }
+      },
+      "additionalProperties": false
+    },
+    "commonObject": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+        },
+        "type": {
+          "enum": ["rect", "circle", "ellipse", "line", "polygon", "polyline", "path", "text", "group"]
+        },
+        "fill": {
+          "$ref": "#/$defs/color"
+        },
+        "stroke": {
+          "$ref": "#/$defs/color"
+        },
+        "strokeWidth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "rect": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "type": {
+              "const": "rect"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "width": {
+              "$ref": "#/$defs/size"
+            },
+            "height": {
+              "$ref": "#/$defs/size"
+            },
+            "rx": {
+              "$ref": "#/$defs/size"
+            },
+            "ry": {
+              "$ref": "#/$defs/size"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "circle": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["cx", "cy", "radius"],
+          "properties": {
+            "type": {
+              "const": "circle"
+            },
+            "cx": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "radius": {
+              "$ref": "#/$defs/size"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "ellipse": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["cx", "cy", "rx", "ry"],
+          "properties": {
+            "type": {
+              "const": "ellipse"
+            },
+            "cx": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "rx": {
+              "$ref": "#/$defs/size"
+            },
+            "ry": {
+              "$ref": "#/$defs/size"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "line": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["x1", "y1", "x2", "y2"],
+          "properties": {
+            "type": {
+              "const": "line"
+            },
+            "x1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "x2": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y2": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "polygon": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["points"],
+          "properties": {
+            "type": {
+              "const": "polygon"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 100000,
+              "items": {
+                "$ref": "#/$defs/point"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "polyline": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["points"],
+          "properties": {
+            "type": {
+              "const": "polyline"
+            },
+            "points": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 100000,
+              "items": {
+                "$ref": "#/$defs/point"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "path": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["d"],
+          "properties": {
+            "type": {
+              "const": "path"
+            },
+            "d": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000000,
+              "pattern": "^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\\s-]+$"
+            },
+            "fillRule": {
+              "enum": ["nonzero", "evenodd"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "text": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["x", "y", "content"],
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "content": {
+              "type": "string",
+              "maxLength": 100000
+            },
+            "fontSize": {
+              "$ref": "#/$defs/positiveSize"
+            },
+            "fontFamily": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "fontWeight": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900,
+              "multipleOf": 100
+            },
+            "textAnchor": {
+              "enum": ["start", "middle", "end"]
+            },
+            "letterSpacing": {
+              "type": "number",
+              "minimum": -1000,
+              "maximum": 1000
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "group": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "type": "object",
+          "required": ["children"],
+          "properties": {
+            "type": {
+              "const": "group"
+            },
+            "children": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "$ref": "#/$defs/object"
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "object": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/commonObject"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "rect"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/rect"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "circle"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/circle"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ellipse"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/ellipse"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "line"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/line"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "polygon"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/polygon"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "polyline"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/polyline"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "path"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "group"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/group"
+          }
+        }
+      ]
+    }
+  }
+}

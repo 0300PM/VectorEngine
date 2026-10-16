@@ -1,7 +1,0 @@
-dist
-coverage
-node_modules
-public/wasm
-cpp/build
-cpp/build-wasm
-package-lock.json

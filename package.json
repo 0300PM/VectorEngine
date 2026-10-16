@@ -2,50 +2,23 @@
   "name": "vector-engine",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=22"
-  },
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --build && vite build",
-    "preview": "vite preview",
-    "type-check": "vue-tsc --build",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:cpp": "cmake -S cpp -B cpp/build -DCMAKE_BUILD_TYPE=Release && cmake --build cpp/build && ctest --test-dir cpp/build --output-on-failure",
-    "build:wasm": "bash cpp/build_wasm.sh"
+    "dev": "npm run dev --workspace @vector-engine/web --",
+    "build": "npm run build --workspace @vector-engine/web",
+    "test": "npm run test --workspace @vector-engine/web",
+    "test:e2e": "npm run test:e2e --workspace @vector-engine/web --",
+    "typecheck": "npm run typecheck --workspace @vector-engine/web",
+    "engine:configure": "cmake --preset native-debug",
+    "engine:build": "cmake --build --preset native-debug",
+    "engine:test": "ctest --preset native-debug",
+    "wasm:configure": "cmake --preset wasm-release",
+    "wasm:build": "cmake --build --preset wasm-release"
   },
-  "dependencies": {
-    "fflate": "^0.8.3",
-    "pinia": "^4.1.0",
-    "vue": "^3.5.44",
-    "vue-i18n": "^11.4.14",
-    "zod": "^4.6.7"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@napi-rs/canvas": "^1.0.11",
-    "@tailwindcss/vite": "^4.3.3",
-    "@tsconfig/node22": "^22.0.6",
-    "@types/node": "^22.19.17",
-    "@vitejs/plugin-vue": "^6.0.10",
-    "@vue/eslint-config-prettier": "^10.2.0",
-    "@vue/eslint-config-typescript": "^14.9.0",
-    "@vue/tsconfig": "^0.9.1",
-    "@xmldom/xmldom": "^0.9.12",
-    "eslint": "^10.12.0",
-    "eslint-plugin-vue": "^10.11.1",
-    "jiti": "^2.7.0",
-    "prettier": "^3.9.10",
-    "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.3",
-    "vite": "^8.3.4",
-    "vitest": "^5.0.4",
-    "vue-tsc": "^3.3.13"
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
