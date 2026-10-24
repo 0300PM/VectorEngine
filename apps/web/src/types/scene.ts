@@ -1,6 +1,9 @@
 export type Unit = 'px' | 'pt' | 'mm' | 'cm' | 'in'
 export type FillRule = 'nonzero' | 'evenodd'
 export type TextAnchor = 'start' | 'middle' | 'end'
+export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'
+export type GradientUnits = 'objectBoundingBox' | 'userSpaceOnUse'
+export type SpreadMethod = 'pad' | 'reflect' | 'repeat'
 
 export interface Point {
   x: number
@@ -19,12 +22,57 @@ export interface Transform {
   originY?: number
 }
 
+export interface GradientStop {
+  offset: number
+  color: string
+  opacity?: number
+}
+
+export interface LinearGradient {
+  id: string
+  type: 'linear'
+  gradientUnits?: GradientUnits
+  spreadMethod?: SpreadMethod
+  x1?: number
+  y1?: number
+  x2?: number
+  y2?: number
+  stops: GradientStop[]
+}
+
+export interface RadialGradient {
+  id: string
+  type: 'radial'
+  gradientUnits?: GradientUnits
+  spreadMethod?: SpreadMethod
+  cx?: number
+  cy?: number
+  r?: number
+  fx?: number
+  fy?: number
+  stops: GradientStop[]
+}
+
+export type SceneGradient = LinearGradient | RadialGradient
+
+export interface SceneWorkspace {
+  id: string
+  name?: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface CommonObject {
   id: string
+  name?: string
+  layerId?: string
   fill?: string
   stroke?: string
   strokeWidth?: number
   opacity?: number
+  blendMode?: BlendMode
   transform?: Transform
   visible?: boolean
 }
@@ -106,15 +154,27 @@ export type SceneObject =
   | TextObject
   | GroupObject
 
+export interface SceneLayer {
+  id: string
+  name?: string
+  visible?: boolean
+  opacity?: number
+  objects: SceneObject[]
+}
+
 export interface SceneDocument {
   width: number
   height: number
   unit?: Unit
   background?: string
+  gradients?: SceneGradient[]
+  workspaces?: SceneWorkspace[]
 }
 
 export interface VectorScene {
   version: '1.0'
   document: SceneDocument
+  gradients?: SceneGradient[]
+  layers?: SceneLayer[]
   objects: SceneObject[]
 }
