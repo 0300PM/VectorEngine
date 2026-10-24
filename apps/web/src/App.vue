@@ -5,14 +5,18 @@ import AppHeader from '@/components/AppHeader.vue'
 import ExportPanel from '@/components/ExportPanel.vue'
 import JsonEditor from '@/components/JsonEditor.vue'
 import MobileTabs, { type WorkspaceTab } from '@/components/MobileTabs.vue'
+import PathToolbar from '@/components/PathToolbar.vue'
+import PropertiesInspector from '@/components/PropertiesInspector.vue'
 import PreviewPanel from '@/components/PreviewPanel.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import UiIcon from '@/components/UiIcon.vue'
 import { useDebouncedTask } from '@/composables/useDebouncedTask'
+import { findObjectsById } from '@/inspector/sceneTree'
+import { parsePathObject, type PathCommand } from '@/paths/editor'
+import type { PathModel } from '@/paths/model'
 import { engineLimits } from '@/engine/limits'
 import { useEngineStore } from '@/stores/engine'
-import type { BackgroundMode, ExportFormat } from '@/types/engine'
-import { downloadBytes, readTextFile, sanitizeFilename } from '@/utils/file'
+import { readTextFile } from '@/utils/file'
 
 interface Toast {
   id: number
@@ -31,14 +35,17 @@ const {
   preview,
   lastDuration,
   isStale,
-  settings,
   errors,
   warnings,
   objectCount,
   outputWidth,
   outputHeight,
-  outputValid,
   canExport,
+  editorBackdrop,
+  selectedObjectIds,
+  pathTool,
+  nodeEditing,
+  fullscreen,
 } = storeToRefs(store)
 
 const activeTab = ref<WorkspaceTab>('preview')
@@ -47,11 +54,34 @@ let toastId = 0
 
 const previewWidth = computed(() => preview.value?.width ?? scene.value?.document.width ?? 0)
 const previewHeight = computed(() => preview.value?.height ?? scene.value?.document.height ?? 0)
-const documentBackground = computed(() => {
-  const value = scene.value?.document.background
-  return value && value !== 'none' ? value : null
-})
 const exporting = computed(() => renderState.value === 'exporting')
+
+const selectedPathModel = computed<PathModel | null>(() => {
+  if (!scene.value) {
+    return null
+  }
+  const object = findObjectsById(scene.value, selectedObjectIds.value).find(
+    (item) => item.type === 'path',
+  )
+  return object ? parsePathObject(object) : null
+})
+
+const handlePathCommand = (command: PathCommand): void => {
+  store.applyPathCommandToSelection(command)
+}
+
+const handlePathCreate = (model: PathModel, name: string): void => {
+  store.addPathFromModel(model, name)
+}
+
+const handlePathCancel = (): void => {
+  store.setPathTool('select')
+  store.setNodeEditing(false)
+}
+
+const handlePathSelect = (subpath: number, node: number): void => {
+  store.setSelectedNode(subpath, node)
+}
 
 const showToast = (message: string, type: Toast['type']): void => {
   const id = ++toastId
@@ -102,33 +132,61 @@ const resetDocument = (): void => {
 }
 
 const exportDocument = async (): Promise<void> => {
-  if (!canExport.value) {
-    return
-  }
   try {
-    const result = await store.exportDocument()
-    const filename = `${sanitizeFilename(documentName.value)}.${result.extension}`
-    downloadBytes(result.data, filename, result.mimeType)
-    showToast(`${filename} is ready`, 'success')
+    const result = await store.exportCurrent()
+    if (result) {
+      showToast(`${result.filename} is ready`, 'success')
+    }
   } catch (error) {
     showToast(error instanceof Error ? error.message : 'Export failed', 'error')
   }
 }
 
-const setFormat = (format: ExportFormat): void => store.setFormat(format)
-const setScale = (scale: number): void => { settings.value.scale = scale }
-const setLock = (locked: boolean): void => { settings.value.lockAspect = locked }
-const setBackgroundMode = (mode: BackgroundMode): void => { settings.value.backgroundMode = mode }
-const setBackground = (color: string): void => {
-  settings.value.background = color
-  settings.value.backgroundMode = 'custom'
+const exportBatchDocuments = async (): Promise<void> => {
+  try {
+    const report = await store.exportBatch()
+    if (report && !report.cancelled) {
+      showToast(
+        report.zipFilename
+          ? `${report.zipFilename} is ready`
+          : `Exported ${report.succeeded} files`,
+        'success',
+      )
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : 'Batch export failed', 'error')
+  }
 }
-const setQuality = (quality: number): void => { settings.value.quality = Math.min(100, Math.max(1, Math.round(quality))) }
 
 const handleKeyboard = (event: KeyboardEvent): void => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+  if (!(event.ctrlKey || event.metaKey)) {
+    return
+  }
+  const key = event.key.toLowerCase()
+
+  if (key === 's') {
     event.preventDefault()
-    void exportDocument()
+    if (store.batchMode) {
+      void exportBatchDocuments()
+    } else {
+      void exportDocument()
+    }
+    return
+  }
+
+  if (key === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) {
+      store.redo()
+    } else {
+      store.undo()
+    }
+    return
+  }
+
+  if (key === 'y') {
+    event.preventDefault()
+    store.redo()
   }
 }
 
@@ -144,7 +202,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'is-fullscreen': fullscreen }">
     <AppHeader
       :document-name="documentName"
       :can-export="canExport"
@@ -169,6 +227,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="preview-column" :class="{ 'mobile-panel-hidden': activeTab !== 'preview' }">
+        <PathToolbar />
         <PreviewPanel
           :svg="preview?.svg ?? null"
           :width="previewWidth"
@@ -176,28 +235,26 @@ onBeforeUnmount(() => {
           :object-count="objectCount"
           :render-state="renderState"
           :stale="isStale"
+          :backdrop="editorBackdrop"
+          :path-model="selectedPathModel"
+          :path-tool="pathTool"
+          :node-editing="nodeEditing"
+          @update:backdrop="editorBackdrop = $event"
+          @path-command="handlePathCommand"
+          @path-create="handlePathCreate"
+          @path-select="handlePathSelect"
+          @path-cancel="handlePathCancel"
         />
+      </div>
+
+      <div class="inspector-column" :class="{ 'mobile-panel-hidden': activeTab !== 'properties' }">
+        <PropertiesInspector />
       </div>
 
       <div class="export-column" :class="{ 'mobile-panel-hidden': activeTab !== 'export' }">
         <ExportPanel
-          :settings="settings"
-          :output-width="outputWidth"
-          :output-height="outputHeight"
-          :output-valid="outputValid"
-          :document-background="documentBackground"
-          :can-export="canExport"
-          :exporting="exporting"
-          @set-format="setFormat"
-          @set-width="store.setWidth"
-          @set-height="store.setHeight"
-          @set-scale="setScale"
-          @set-lock="setLock"
-          @set-background-mode="setBackgroundMode"
-          @set-background="setBackground"
-          @set-quality="setQuality"
-          @reset-dimensions="store.resetDimensions"
           @export="exportDocument"
+          @export-batch="exportBatchDocuments"
         />
       </div>
     </main>
