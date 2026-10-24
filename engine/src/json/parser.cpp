@@ -35,6 +35,9 @@ constexpr double maximum_coordinate = 1'000'000.0;
 struct ParseContext {
     std::vector<Issue> issues;
     std::unordered_set<std::string> ids;
+    std::unordered_set<std::string> gradient_ids;
+    std::unordered_set<std::string> layer_ids;
+    std::vector<std::pair<std::string, std::string>> referenced_gradients;
     std::size_t object_count{};
     bool object_limit_reported{};
 
@@ -44,12 +47,6 @@ struct ParseContext {
 
     void warning(std::string code, std::string message, std::string path) {
         issues.push_back({std::move(code), std::move(message), std::move(path), Severity::warning});
-    }
-
-    [[nodiscard]] auto has_errors() const -> bool {
-        return std::ranges::any_of(issues, [](const Issue& issue) {
-            return issue.severity == Severity::error;
-        });
     }
 };
 
@@ -145,7 +142,7 @@ struct ParseContext {
 }
 
 [[nodiscard]] auto is_valid_id(std::string_view id) -> bool {
-    if (id.empty()) {
+    if (id.empty() || id.size() > 128U) {
         return false;
     }
     const auto is_alpha = [](char character) {
@@ -166,11 +163,14 @@ struct ParseContext {
 [[nodiscard]] auto is_common_key(std::string_view key) -> bool {
     constexpr std::array keys{
         std::string_view{"id"},
+        std::string_view{"name"},
+        std::string_view{"layerId"},
         std::string_view{"type"},
         std::string_view{"fill"},
         std::string_view{"stroke"},
         std::string_view{"strokeWidth"},
         std::string_view{"opacity"},
+        std::string_view{"blendMode"},
         std::string_view{"transform"},
         std::string_view{"visible"}
     };
@@ -188,36 +188,61 @@ void reject_unknown_keys(
         if (is_common_key(key) || std::ranges::find(specific_keys, key) != specific_keys.end()) {
             continue;
         }
+        if (key == "filter" || key == "mask" || key == "clipPath") {
+            context.error("unsupported." + key, "Unsupported vector effect property: " + key, member_path(path, key));
+            continue;
+        }
         context.error("schema.additionalProperties", "Unsupported property", member_path(path, key));
     }
 }
 
-[[nodiscard]] auto parse_paint(
+void parse_paint_channel(
     const Json& object,
     std::string_view key,
     std::string_view path,
     ParseContext& context,
-    std::optional<Color> fallback
-) -> std::optional<Color> {
+    std::optional<Color> fallback,
+    std::optional<Color>& out_color,
+    std::optional<std::string>& out_gradient
+) {
     const auto iterator = object.find(key);
     if (iterator == object.end()) {
-        return fallback;
+        out_color = fallback;
+        out_gradient = std::nullopt;
+        return;
     }
     const auto target_path = member_path(path, key);
     if (!iterator->is_string()) {
-        context.error("schema.type", "Expected a color string", target_path);
-        return fallback;
+        context.error("schema.type", "Expected a paint string", target_path);
+        out_color = fallback;
+        return;
     }
     const auto value = iterator->get<std::string>();
     if (value == "none") {
-        return std::nullopt;
+        out_color = std::nullopt;
+        out_gradient = std::nullopt;
+        return;
+    }
+    if (value.starts_with("url(#") && value.ends_with(')') && value.size() > 6U) {
+        auto grad_id = value.substr(5U, value.size() - 6U);
+        if (!is_valid_id(grad_id)) {
+            context.error("schema.paint", "Gradient reference identifier is invalid", target_path);
+            out_color = fallback;
+            return;
+        }
+        out_color = std::nullopt;
+        out_gradient = grad_id;
+        context.referenced_gradients.emplace_back(std::move(grad_id), target_path);
+        return;
     }
     const auto color = parse_color(value);
     if (!color) {
-        context.error("schema.color", "Expected a hexadecimal color", target_path);
-        return fallback;
+        context.error("schema.color", "Expected a hexadecimal color or url(#gradient) reference", target_path);
+        out_color = fallback;
+        return;
     }
-    return color;
+    out_color = color;
+    out_gradient = std::nullopt;
 }
 
 [[nodiscard]] auto parse_style(
@@ -234,10 +259,34 @@ void reject_unknown_keys(
         : std::optional<Color>{};
 
     Style style;
-    style.fill = parse_paint(object, "fill", path, context, default_fill);
-    style.stroke = parse_paint(object, "stroke", path, context, default_stroke);
+    parse_paint_channel(object, "fill", path, context, default_fill, style.fill, style.fill_gradient_id);
+    parse_paint_channel(object, "stroke", path, context, default_stroke, style.stroke, style.stroke_gradient_id);
     style.stroke_width = optional_number(object, "strokeWidth", path, context, 0.0, 10'000.0).value_or(1.0);
     style.opacity = optional_number(object, "opacity", path, context, 0.0, 1.0).value_or(1.0);
+
+    if (const auto iterator = object.find("blendMode"); iterator != object.end()) {
+        const auto blend_path = member_path(path, "blendMode");
+        if (!iterator->is_string()) {
+            context.error("schema.type", "Expected a string blend mode", blend_path);
+        } else {
+            const auto& mode = iterator->get_ref<const std::string&>();
+            if (mode == "normal") {
+                style.blend_mode = BlendMode::normal;
+            } else if (mode == "multiply") {
+                style.blend_mode = BlendMode::multiply;
+            } else if (mode == "screen") {
+                style.blend_mode = BlendMode::screen;
+            } else if (mode == "overlay") {
+                style.blend_mode = BlendMode::overlay;
+            } else if (mode == "darken") {
+                style.blend_mode = BlendMode::darken;
+            } else if (mode == "lighten") {
+                style.blend_mode = BlendMode::lighten;
+            } else {
+                context.error("unsupported.blendMode", "Unsupported blend mode: " + mode, blend_path);
+            }
+        }
+    }
 
     if (const auto iterator = object.find("visible"); iterator != object.end()) {
         if (iterator->is_boolean()) {
@@ -377,6 +426,20 @@ void reject_unknown_keys(
 
     Node node;
     node.id = *id;
+    if (const auto name_it = value.find("name"); name_it != value.end()) {
+        if (!name_it->is_string() || name_it->get_ref<const std::string&>().empty() || name_it->get_ref<const std::string&>().size() > 128U) {
+            context.error("schema.name", "Object name must contain 1 to 128 characters", member_path(path, "name"));
+        } else {
+            node.name = name_it->get<std::string>();
+        }
+    }
+    if (const auto layer_it = value.find("layerId"); layer_it != value.end()) {
+        if (!layer_it->is_string() || !is_valid_id(layer_it->get_ref<const std::string&>())) {
+            context.error("schema.id", "Layer id has an unsupported format", member_path(path, "layerId"));
+        } else {
+            node.layer_id = layer_it->get<std::string>();
+        }
+    }
     node.style = parse_style(value, *type, path, context);
     node.transform = parse_transform(value, path, context);
 
@@ -498,7 +561,193 @@ void reject_unknown_keys(
     return node;
 }
 
-[[nodiscard]] auto parse_document(const Json& value, ParseContext& context) -> std::optional<Document> {
+void parse_gradients(const Json& array, std::string_view base_path, std::vector<Gradient>& out, ParseContext& context) {
+    if (!array.is_array()) {
+        context.error("schema.type", "Expected an array of gradients", std::string{base_path});
+        return;
+    }
+    if (array.size() > 1'000U) {
+        context.error("limit.gradients", "Gradient count exceeds 1000", std::string{base_path});
+        return;
+    }
+
+    for (std::size_t index = 0; index < array.size(); ++index) {
+        const auto& item = array[index];
+        const auto path = index_path(base_path, index);
+        if (!item.is_object()) {
+            context.error("schema.type", "Expected a gradient object", path);
+            continue;
+        }
+        const auto id = required_string(item, "id", path, context, 128U);
+        const auto type = required_string(item, "type", path, context, 32U);
+        if (!id || !type) {
+            continue;
+        }
+        if (!is_valid_id(*id)) {
+            context.error("schema.id", "Gradient id has an unsupported format", member_path(path, "id"));
+        }
+        if (!context.gradient_ids.emplace(*id).second) {
+            context.error("semantic.duplicateGradientId", "Gradient id must be unique", member_path(path, "id"));
+        }
+
+        auto units = GradientUnits::object_bounding_box;
+        if (const auto units_it = item.find("gradientUnits"); units_it != item.end()) {
+            if (!units_it->is_string() || (units_it->get<std::string>() != "objectBoundingBox" && units_it->get<std::string>() != "userSpaceOnUse")) {
+                context.error("schema.enum", "Unsupported gradientUnits value", member_path(path, "gradientUnits"));
+            } else if (units_it->get<std::string>() == "userSpaceOnUse") {
+                units = GradientUnits::user_space_on_use;
+            }
+        }
+
+        auto spread = SpreadMethod::pad;
+        if (const auto spread_it = item.find("spreadMethod"); spread_it != item.end()) {
+            if (!spread_it->is_string()) {
+                context.error("schema.type", "Expected string spreadMethod", member_path(path, "spreadMethod"));
+            } else {
+                const auto& s = spread_it->get_ref<const std::string&>();
+                if (s == "reflect") {
+                    spread = SpreadMethod::reflect;
+                } else if (s == "repeat") {
+                    spread = SpreadMethod::repeat;
+                } else if (s != "pad") {
+                    context.error("schema.enum", "Unsupported spreadMethod value", member_path(path, "spreadMethod"));
+                }
+            }
+        }
+
+        std::vector<GradientStop> stops;
+        const auto stops_it = item.find("stops");
+        const auto stops_path = member_path(path, "stops");
+        if (stops_it == item.end() || !stops_it->is_array() || stops_it->size() < 2U || stops_it->size() > 64U) {
+            context.error("schema.stops", "Gradient requires between 2 and 64 stops", stops_path);
+        } else {
+            stops.reserve(stops_it->size());
+            for (std::size_t stop_index = 0; stop_index < stops_it->size(); ++stop_index) {
+                const auto& stop_item = (*stops_it)[stop_index];
+                const auto stop_path = index_path(stops_path, stop_index);
+                if (!stop_item.is_object()) {
+                    context.error("schema.type", "Expected a gradient stop object", stop_path);
+                    continue;
+                }
+                const auto offset = required_number(stop_item, "offset", stop_path, context, 0.0, 1.0);
+                const auto color_str = required_string(stop_item, "color", stop_path, context, 16U);
+                const auto opacity = optional_number(stop_item, "opacity", stop_path, context, 0.0, 1.0).value_or(1.0);
+                const auto color = color_str ? parse_color(*color_str) : std::nullopt;
+                if (color_str && !color) {
+                    context.error("schema.color", "Expected a hexadecimal stop color", member_path(stop_path, "color"));
+                }
+                if (offset && color) {
+                    stops.push_back({*offset, *color, opacity});
+                }
+            }
+            std::ranges::stable_sort(stops, {}, &GradientStop::offset);
+        }
+
+        if (*type == "linear") {
+            constexpr std::array allowed{"id", "type", "gradientUnits", "spreadMethod", "stops", "x1", "y1", "x2", "y2"};
+            for (const auto& [k, v] : item.items()) {
+                static_cast<void>(v);
+                if (std::ranges::find(allowed, k) == allowed.end()) {
+                    context.error("schema.additionalProperties", "Unsupported linear gradient property", member_path(path, k));
+                }
+            }
+            const auto x1 = optional_number(item, "x1", path, context, -maximum_coordinate, maximum_coordinate).value_or(0.0);
+            const auto y1 = optional_number(item, "y1", path, context, -maximum_coordinate, maximum_coordinate).value_or(0.0);
+            const auto x2 = optional_number(item, "x2", path, context, -maximum_coordinate, maximum_coordinate).value_or(1.0);
+            const auto y2 = optional_number(item, "y2", path, context, -maximum_coordinate, maximum_coordinate).value_or(0.0);
+            out.push_back(LinearGradient{*id, units, spread, x1, y1, x2, y2, std::move(stops)});
+        } else if (*type == "radial") {
+            constexpr std::array allowed{"id", "type", "gradientUnits", "spreadMethod", "stops", "cx", "cy", "r", "fx", "fy"};
+            for (const auto& [k, v] : item.items()) {
+                static_cast<void>(v);
+                if (std::ranges::find(allowed, k) == allowed.end()) {
+                    context.error("schema.additionalProperties", "Unsupported radial gradient property", member_path(path, k));
+                }
+            }
+            const auto cx = optional_number(item, "cx", path, context, -maximum_coordinate, maximum_coordinate).value_or(0.5);
+            const auto cy = optional_number(item, "cy", path, context, -maximum_coordinate, maximum_coordinate).value_or(0.5);
+            const auto r = optional_number(item, "r", path, context, 0.0001, maximum_coordinate).value_or(0.5);
+            const auto fx = optional_number(item, "fx", path, context, -maximum_coordinate, maximum_coordinate);
+            const auto fy = optional_number(item, "fy", path, context, -maximum_coordinate, maximum_coordinate);
+            out.push_back(RadialGradient{*id, units, spread, cx, cy, r, fx, fy, std::move(stops)});
+        } else {
+            context.error("unsupported.gradient", "Unsupported gradient type: " + *type, member_path(path, "type"));
+        }
+    }
+}
+
+void parse_layers(const Json& array, std::vector<Layer>& out, ParseContext& context) {
+    constexpr auto base_path = std::string_view{"/layers"};
+    if (!array.is_array()) {
+        context.error("schema.type", "Expected an array of layers", std::string{base_path});
+        return;
+    }
+    if (array.size() > 1'000U) {
+        context.error("limit.layers", "Layer count exceeds 1000", std::string{base_path});
+        return;
+    }
+    out.reserve(array.size());
+    for (std::size_t index = 0; index < array.size(); ++index) {
+        const auto& item = array[index];
+        const auto path = index_path(base_path, index);
+        if (!item.is_object()) {
+            context.error("schema.type", "Expected a layer object", path);
+            continue;
+        }
+        constexpr std::array allowed{"id", "name", "visible", "opacity", "objects"};
+        for (const auto& [k, v] : item.items()) {
+            static_cast<void>(v);
+            if (std::ranges::find(allowed, k) == allowed.end()) {
+                context.error("schema.additionalProperties", "Unsupported layer property", member_path(path, k));
+            }
+        }
+        const auto id = required_string(item, "id", path, context, 128U);
+        if (!id) {
+            continue;
+        }
+        if (!is_valid_id(*id)) {
+            context.error("schema.id", "Layer id has an unsupported format", member_path(path, "id"));
+        }
+        if (!context.layer_ids.emplace(*id).second) {
+            context.error("semantic.duplicateLayerId", "Layer id must be unique", member_path(path, "id"));
+        }
+        Layer layer;
+        layer.id = *id;
+        if (const auto name_it = item.find("name"); name_it != item.end()) {
+            if (!name_it->is_string() || name_it->get_ref<const std::string&>().empty() || name_it->get_ref<const std::string&>().size() > 128U) {
+                context.error("schema.name", "Layer name must contain 1 to 128 characters", member_path(path, "name"));
+            } else {
+                layer.name = name_it->get<std::string>();
+            }
+        }
+        if (const auto vis_it = item.find("visible"); vis_it != item.end()) {
+            if (!vis_it->is_boolean()) {
+                context.error("schema.type", "Expected boolean layer visibility", member_path(path, "visible"));
+            } else {
+                layer.visible = vis_it->get<bool>();
+            }
+        }
+        layer.opacity = optional_number(item, "opacity", path, context, 0.0, 1.0).value_or(1.0);
+        const auto objects_it = item.find("objects");
+        const auto objects_path = member_path(path, "objects");
+        if (objects_it == item.end() || !objects_it->is_array()) {
+            context.error("schema.required", "Layer requires an objects array", objects_path);
+        } else {
+            layer.objects.reserve(objects_it->size());
+            for (std::size_t child_index = 0; child_index < objects_it->size(); ++child_index) {
+                if (auto node = parse_node((*objects_it)[child_index], index_path(objects_path, child_index), context, 1U)) {
+                    if (!node->layer_id) {
+                        node->layer_id = layer.id;
+                    }
+                    layer.objects.push_back(std::move(*node));
+                }
+            }
+        }
+        out.push_back(std::move(layer));
+    }
+}
+
+[[nodiscard]] auto parse_document(const Json& value, std::vector<Gradient>& scene_gradients, ParseContext& context) -> std::optional<Document> {
     constexpr auto path = std::string_view{"/document"};
     if (!value.is_object()) {
         context.error("schema.type", "Expected a document object", std::string{path});
@@ -508,7 +757,9 @@ void reject_unknown_keys(
         std::string_view{"width"},
         std::string_view{"height"},
         std::string_view{"unit"},
-        std::string_view{"background"}
+        std::string_view{"background"},
+        std::string_view{"gradients"},
+        std::string_view{"workspaces"}
     };
     for (const auto& [key, child] : value.items()) {
         static_cast<void>(child);
@@ -571,6 +822,53 @@ void reject_unknown_keys(
         }
     }
 
+    if (const auto grad_it = value.find("gradients"); grad_it != value.end()) {
+        parse_gradients(*grad_it, "/document/gradients", scene_gradients, context);
+    }
+
+    std::vector<Workspace> workspaces;
+    if (const auto ws_it = value.find("workspaces"); ws_it != value.end()) {
+        const auto ws_base = member_path(path, "workspaces");
+        if (!ws_it->is_array() || ws_it->size() > 256U) {
+            context.error("schema.workspaces", "Expected at most 256 workspace entries", ws_base);
+        } else {
+            std::unordered_set<std::string> ws_ids;
+            for (std::size_t index = 0; index < ws_it->size(); ++index) {
+                const auto& item = (*ws_it)[index];
+                const auto ws_path = index_path(ws_base, index);
+                if (!item.is_object()) {
+                    context.error("schema.type", "Expected a workspace object", ws_path);
+                    continue;
+                }
+                constexpr std::array ws_allowed{"id", "name", "x", "y", "width", "height"};
+                for (const auto& [k, v] : item.items()) {
+                    static_cast<void>(v);
+                    if (std::ranges::find(ws_allowed, k) == ws_allowed.end()) {
+                        context.error("schema.additionalProperties", "Unsupported workspace property", member_path(ws_path, k));
+                    }
+                }
+                const auto id = required_string(item, "id", ws_path, context, 128U);
+                const auto x = required_number(item, "x", ws_path, context);
+                const auto y = required_number(item, "y", ws_path, context);
+                const auto ws_w = required_number(item, "width", ws_path, context, 0.001, maximum_coordinate);
+                const auto ws_h = required_number(item, "height", ws_path, context, 0.001, maximum_coordinate);
+                if (id && !is_valid_id(*id)) {
+                    context.error("schema.id", "Workspace id has an unsupported format", member_path(ws_path, "id"));
+                }
+                if (id && !ws_ids.emplace(*id).second) {
+                    context.error("semantic.duplicateWorkspaceId", "Workspace id must be unique", member_path(ws_path, "id"));
+                }
+                auto name = id.value_or("");
+                if (const auto name_it = item.find("name"); name_it != item.end() && name_it->is_string()) {
+                    name = name_it->get<std::string>();
+                }
+                if (id && x && y && ws_w && ws_h) {
+                    workspaces.push_back({*id, std::move(name), *x, *y, *ws_w, *ws_h});
+                }
+            }
+        }
+    }
+
     if (!width || !height) {
         return std::nullopt;
     }
@@ -580,7 +878,7 @@ void reject_unknown_keys(
     } else if (pixels > 16'777'216ULL) {
         context.warning("performance.largeDocument", "Large documents may take longer to rasterize", std::string{path});
     }
-    return Document{*width, *height, std::move(unit), background};
+    return Document{*width, *height, std::move(unit), background, std::move(workspaces)};
 }
 
 [[nodiscard]] auto hex_value(char character) -> std::optional<std::uint8_t> {
@@ -660,6 +958,8 @@ auto parse_scene(std::string_view source) -> ValidationResult {
     constexpr std::array root_keys{
         std::string_view{"version"},
         std::string_view{"document"},
+        std::string_view{"gradients"},
+        std::string_view{"layers"},
         std::string_view{"objects"}
     };
     for (const auto& [key, value] : root.items()) {
@@ -676,10 +976,18 @@ auto parse_scene(std::string_view source) -> ValidationResult {
         context.error("schema.version", "Only scene version 1.0 is supported", "/version");
     }
 
+    if (const auto grad_it = root.find("gradients"); grad_it != root.end()) {
+        parse_gradients(*grad_it, "/gradients", scene.gradients, context);
+    }
+
     if (const auto iterator = root.find("document"); iterator == root.end()) {
         context.error("schema.required", "Required property is missing", "/document");
-    } else if (auto document = parse_document(*iterator, context)) {
+    } else if (auto document = parse_document(*iterator, scene.gradients, context)) {
         scene.document = std::move(*document);
+    }
+
+    if (const auto layers_it = root.find("layers"); layers_it != root.end()) {
+        parse_layers(*layers_it, scene.layers, context);
     }
 
     if (const auto iterator = root.find("objects"); iterator == root.end()) {
@@ -692,6 +1000,12 @@ auto parse_scene(std::string_view source) -> ValidationResult {
             if (auto node = parse_node((*iterator)[index], index_path("/objects", index), context, 1U)) {
                 scene.objects.push_back(std::move(*node));
             }
+        }
+    }
+
+    for (const auto& [grad_id, ref_path] : context.referenced_gradients) {
+        if (!context.gradient_ids.contains(grad_id)) {
+            context.error("semantic.missingGradient", "Referenced gradient does not exist: " + grad_id, ref_path);
         }
     }
 
