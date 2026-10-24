@@ -100,40 +100,44 @@ private:
     };
 }
 
-void append_cubic(
+[[nodiscard]] auto append_cubic(
     FlattenedSubpath& subpath,
     Point start,
     Point first,
     Point second,
     Point end,
     double tolerance
-) {
+) -> std::size_t {
     const auto length = distance(start, first) + distance(first, second) + distance(second, end);
     const auto segments = std::clamp(static_cast<int>(std::ceil(length / std::max(0.1, tolerance * 6.0))), 4, 128);
+    subpath.points.reserve(subpath.points.size() + static_cast<std::size_t>(segments));
     for (int index = 1; index <= segments; ++index) {
         subpath.points.push_back(point_on_cubic(start, first, second, end, static_cast<double>(index) / segments));
     }
+    return static_cast<std::size_t>(segments);
 }
 
-void append_quadratic(
+[[nodiscard]] auto append_quadratic(
     FlattenedSubpath& subpath,
     Point start,
     Point control,
     Point end,
     double tolerance
-) {
+) -> std::size_t {
     const auto length = distance(start, control) + distance(control, end);
     const auto segments = std::clamp(static_cast<int>(std::ceil(length / std::max(0.1, tolerance * 6.0))), 3, 96);
+    subpath.points.reserve(subpath.points.size() + static_cast<std::size_t>(segments));
     for (int index = 1; index <= segments; ++index) {
         subpath.points.push_back(point_on_quadratic(start, control, end, static_cast<double>(index) / segments));
     }
+    return static_cast<std::size_t>(segments);
 }
 
 [[nodiscard]] auto vector_angle(double ux, double uy, double vx, double vy) -> double {
     return std::atan2(ux * vy - uy * vx, ux * vx + uy * vy);
 }
 
-void append_arc(
+[[nodiscard]] auto append_arc(
     FlattenedSubpath& subpath,
     Point start,
     double radius_x,
@@ -143,12 +147,12 @@ void append_arc(
     bool sweep,
     Point end,
     double tolerance
-) {
+) -> std::size_t {
     radius_x = std::abs(radius_x);
     radius_y = std::abs(radius_y);
     if (radius_x < 1.0e-12 || radius_y < 1.0e-12 || distance(start, end) < 1.0e-12) {
         subpath.points.push_back(end);
-        return;
+        return 1U;
     }
 
     const auto angle = rotation * pi / 180.0;
@@ -197,6 +201,7 @@ void append_arc(
 
     const auto approximate_length = std::abs(delta_angle) * std::max(radius_x, radius_y);
     const auto segments = std::clamp(static_cast<int>(std::ceil(approximate_length / std::max(0.1, tolerance * 6.0))), 4, 256);
+    subpath.points.reserve(subpath.points.size() + static_cast<std::size_t>(segments));
     for (int index = 1; index <= segments; ++index) {
         const auto current_angle = start_angle + delta_angle * static_cast<double>(index) / segments;
         const auto ellipse_x = radius_x * std::cos(current_angle);
@@ -209,6 +214,7 @@ void append_arc(
     if (!subpath.points.empty()) {
         subpath.points.back() = end;
     }
+    return static_cast<std::size_t>(segments);
 }
 
 [[nodiscard]] auto supported_command(char command) -> bool {
@@ -249,14 +255,6 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
     const auto require_subpath = [&]() {
         return subpath != nullptr;
     };
-    const auto account_points = [&]() -> bool {
-        std::size_t count{};
-        for (const auto& candidate : result.subpaths) {
-            count += candidate.points.size();
-        }
-        total_points = count;
-        return total_points <= maximum_flattened_points;
-    };
 
     while (!scanner.empty()) {
         if (scanner.has_command()) {
@@ -295,6 +293,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
                 subpath = &result.subpaths.back();
                 subpath_start = point;
                 current = point;
+                ++total_points;
                 command = relative ? 'l' : 'L';
             } else {
                 if (!require_subpath()) {
@@ -302,6 +301,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
                 }
                 subpath->points.push_back(point);
                 current = point;
+                ++total_points;
             }
         } else if (normalized == 'H') {
             const auto x = read();
@@ -310,6 +310,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
             }
             current.x = relative ? current.x + *x : *x;
             subpath->points.push_back(current);
+            ++total_points;
         } else if (normalized == 'V') {
             const auto y = read();
             if (!y || !require_subpath()) {
@@ -317,6 +318,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
             }
             current.y = relative ? current.y + *y : *y;
             subpath->points.push_back(current);
+            ++total_points;
         } else if (normalized == 'C') {
             const auto x1 = read();
             const auto y1 = read();
@@ -330,7 +332,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
             const auto first = make_point(*x1, *y1, relative);
             const auto second = make_point(*x2, *y2, relative);
             const auto end = make_point(*x, *y, relative);
-            append_cubic(*subpath, current, first, second, end, tolerance);
+            total_points += append_cubic(*subpath, current, first, second, end, tolerance);
             previous_cubic_control = second;
             current = end;
         } else if (normalized == 'S') {
@@ -349,7 +351,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
                 : current;
             const auto second = make_point(*x2, *y2, relative);
             const auto end = make_point(*x, *y, relative);
-            append_cubic(*subpath, current, first, second, end, tolerance);
+            total_points += append_cubic(*subpath, current, first, second, end, tolerance);
             previous_cubic_control = second;
             current = end;
         } else if (normalized == 'Q') {
@@ -362,7 +364,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
             }
             const auto control = make_point(*x1, *y1, relative);
             const auto end = make_point(*x, *y, relative);
-            append_quadratic(*subpath, current, control, end, tolerance);
+            total_points += append_quadratic(*subpath, current, control, end, tolerance);
             previous_quadratic_control = control;
             current = end;
         } else if (normalized == 'T') {
@@ -378,7 +380,7 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
                 ? reflected(previous_quadratic_control, current)
                 : current;
             const auto end = make_point(*x, *y, relative);
-            append_quadratic(*subpath, current, control, end, tolerance);
+            total_points += append_quadratic(*subpath, current, control, end, tolerance);
             previous_quadratic_control = control;
             current = end;
         } else if (normalized == 'A') {
@@ -396,14 +398,14 @@ auto flatten_path(std::string_view data, double tolerance) -> FlattenedPath {
                 return invalidate();
             }
             const auto end = make_point(*x, *y, relative);
-            append_arc(*subpath, current, *radius_x, *radius_y, *rotation, *large_arc == 1.0, *sweep == 1.0, end, tolerance);
+            total_points += append_arc(*subpath, current, *radius_x, *radius_y, *rotation, *large_arc == 1.0, *sweep == 1.0, end, tolerance);
             current = end;
         } else {
             return invalidate();
         }
 
         previous_command = command;
-        if (!account_points()) {
+        if (total_points > maximum_flattened_points) {
             return invalidate();
         }
     }
