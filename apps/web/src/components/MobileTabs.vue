@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import UiIcon from './UiIcon.vue'
 
-export type WorkspaceTab = 'json' | 'preview' | 'export'
+export type WorkspaceTab = 'json' | 'preview' | 'properties' | 'export'
 
 const props = defineProps<{ modelValue: WorkspaceTab; errorCount: number }>()
 const emit = defineEmits<{ 'update:modelValue': [value: WorkspaceTab] }>()
 
-const tabs: { id: WorkspaceTab; label: string; icon: 'code' | 'preview' | 'export' }[] = [
+const tabs: { id: WorkspaceTab; label: string; icon: 'code' | 'preview' | 'layers' | 'export' }[] = [
   { id: 'json', label: 'JSON', icon: 'code' },
   { id: 'preview', label: 'Preview', icon: 'preview' },
+  { id: 'properties', label: 'Properties', icon: 'layers' },
   { id: 'export', label: 'Export', icon: 'export' },
 ]
 </script>
