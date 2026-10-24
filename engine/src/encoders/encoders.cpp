@@ -56,6 +56,7 @@ auto encode_png(const PixelBuffer& buffer) -> std::vector<std::uint8_t> {
         return {};
     }
     std::vector<std::uint8_t> output;
+    output.reserve(buffer.pixels.size() / 2U + 128U);
     const auto success = stbi_write_png_to_func(
         append_bytes,
         &output,
@@ -77,6 +78,7 @@ auto encode_jpeg(const PixelBuffer& buffer, int quality, Color background) -> st
     }
     const auto rgb = composite_rgb(buffer, background);
     std::vector<std::uint8_t> output;
+    output.reserve(rgb.size() / 4U + 512U);
     const auto success = stbi_write_jpg_to_func(
         append_bytes,
         &output,
@@ -122,6 +124,48 @@ auto encode_bmp24(const PixelBuffer& buffer, Color background) -> std::vector<st
             output[destination] = composite_channel(buffer.pixels[source + 2U], alpha, background.blue);
             output[destination + 1U] = composite_channel(buffer.pixels[source + 1U], alpha, background.green);
             output[destination + 2U] = composite_channel(buffer.pixels[source], alpha, background.red);
+        }
+    }
+    return output;
+}
+
+auto encode_bmp32(const PixelBuffer& buffer) -> std::vector<std::uint8_t> {
+    if (buffer.width == 0U || buffer.height == 0U || buffer.pixels.size() != static_cast<std::size_t>(buffer.width) * buffer.height * 4U) {
+        return {};
+    }
+    constexpr std::size_t header_bytes = 122U;
+    const auto row_stride = static_cast<std::size_t>(buffer.width) * 4U;
+    const auto pixel_bytes = row_stride * buffer.height;
+    std::vector<std::uint8_t> output(header_bytes + pixel_bytes);
+    output[0] = 0x42U;
+    output[1] = 0x4DU;
+    write_u32(output, 2U, static_cast<std::uint32_t>(output.size()));
+    write_u32(output, 10U, static_cast<std::uint32_t>(header_bytes));
+    write_u32(output, 14U, 108U);
+    write_u32(output, 18U, buffer.width);
+    write_u32(output, 22U, buffer.height);
+    write_u16(output, 26U, 1U);
+    write_u16(output, 28U, 32U);
+    write_u32(output, 30U, 3U);
+    write_u32(output, 34U, static_cast<std::uint32_t>(pixel_bytes));
+    write_u32(output, 38U, 2835U);
+    write_u32(output, 42U, 2835U);
+    write_u32(output, 54U, 0x00FF0000U);
+    write_u32(output, 58U, 0x0000FF00U);
+    write_u32(output, 62U, 0x000000FFU);
+    write_u32(output, 66U, 0xFF000000U);
+    write_u32(output, 70U, 0x73524742U);
+
+    for (std::uint32_t destination_y = 0; destination_y < buffer.height; ++destination_y) {
+        const auto source_y = buffer.height - destination_y - 1U;
+        const auto row_offset = header_bytes + static_cast<std::size_t>(destination_y) * row_stride;
+        for (std::uint32_t x = 0; x < buffer.width; ++x) {
+            const auto source = (static_cast<std::size_t>(source_y) * buffer.width + x) * 4U;
+            const auto destination = row_offset + static_cast<std::size_t>(x) * 4U;
+            output[destination] = buffer.pixels[source + 2U];
+            output[destination + 1U] = buffer.pixels[source + 1U];
+            output[destination + 2U] = buffer.pixels[source];
+            output[destination + 3U] = buffer.pixels[source + 3U];
         }
     }
     return output;

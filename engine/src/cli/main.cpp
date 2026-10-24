@@ -43,6 +43,15 @@ namespace {
     return result;
 }
 
+[[nodiscard]] auto parse_double(std::string_view value) -> std::optional<double> {
+    double result{};
+    const auto parsed = std::from_chars(value.data(), value.data() + value.size(), result, std::chars_format::general);
+    if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size()) {
+        return std::nullopt;
+    }
+    return result;
+}
+
 void print_issues(const std::vector<vector_engine::Issue>& issues) {
     for (const auto& issue : issues) {
         std::cerr << (issue.severity == vector_engine::Severity::error ? "error" : "warning") << " [" << issue.code
@@ -63,7 +72,9 @@ void print_issues(const std::vector<vector_engine::Issue>& issues) {
 
 void print_usage() {
     std::cerr << "Usage: vector-engine <input.json> <output.svg|png|jpg|bmp> [--width N] [--height N] "
-                 "[--quality N] [--background #RRGGBB] [--transparent]\n";
+                 "[--scale S] [--fit contain|cover|stretch] [--margin M] [--trim] [--clip] [--include-hidden] "
+                 "[--minify] [--bmp-32] [--quality N] [--background #RRGGBB] [--transparent] "
+                 "[--target-object ID] [--target-group ID] [--target-layer ID] [--target-workspace ID]\n";
 }
 
 }
@@ -112,6 +123,54 @@ int main(int argument_count, char** arguments) {
                 options.height = *parsed;
             } else {
                 options.quality = static_cast<int>(*parsed);
+                options.quality_explicit = true;
+            }
+        } else if (argument == "--scale" || argument == "--margin") {
+            const auto value = next_value();
+            const auto parsed = value ? parse_double(*value) : std::nullopt;
+            if (!parsed) {
+                std::cerr << "Invalid floating point option\n";
+                return 2;
+            }
+            if (argument == "--scale") {
+                options.scale = *parsed;
+            } else {
+                options.margin = *parsed;
+            }
+        } else if (argument == "--fit") {
+            const auto value = next_value();
+            const auto parsed = value ? vector_engine::fit_mode_from_string(*value) : std::nullopt;
+            if (!parsed) {
+                std::cerr << "Invalid fit mode\n";
+                return 2;
+            }
+            options.fit_mode = *parsed;
+        } else if (argument == "--trim") {
+            options.trim_to_bounds = true;
+        } else if (argument == "--clip") {
+            options.clip_to_bounds = true;
+        } else if (argument == "--include-hidden") {
+            options.include_hidden = true;
+        } else if (argument == "--minify") {
+            options.minify_svg = true;
+            options.minify_explicit = true;
+        } else if (argument == "--bmp-32") {
+            options.bmp_variant = vector_engine::BmpVariant::rgba32;
+        } else if (argument == "--target-object" || argument == "--target-group" || argument == "--target-layer" || argument == "--target-workspace") {
+            const auto value = next_value();
+            if (!value || value->empty()) {
+                std::cerr << "Target identifier is required\n";
+                return 2;
+            }
+            options.target.id = std::string{*value};
+            if (argument == "--target-object") {
+                options.target.kind = vector_engine::TargetKind::object;
+            } else if (argument == "--target-group") {
+                options.target.kind = vector_engine::TargetKind::group;
+            } else if (argument == "--target-layer") {
+                options.target.kind = vector_engine::TargetKind::layer;
+            } else {
+                options.target.kind = vector_engine::TargetKind::workspace;
             }
         } else if (argument == "--background") {
             const auto value = next_value();
