@@ -1,11 +1,12 @@
 import type { ErrorObject } from 'ajv'
 import type { ValidationIssue, ValidationResult } from '@/types/engine'
 import validateSchema from './generated/sceneValidator.js'
-import type { SceneObject, VectorScene } from '@/types/scene'
+import type { SceneGradient, SceneObject, VectorScene } from '@/types/scene'
 import { engineLimits } from './limits'
 import { isValidPathData } from './pathValidator'
 
 const pathDataPattern = /^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+$/
+const unsupportedEffectKeys = new Set(['filter', 'mask', 'clipPath'])
 
 const pathFromError = (error: ErrorObject): string => {
   const base = error.instancePath || '$'
@@ -36,11 +37,19 @@ const schemaIssues = (errors: ErrorObject[] | null | undefined): ValidationIssue
   const useful = errors.filter((error) => error.keyword !== 'oneOf' && error.keyword !== 'if')
   const unique = new Map<string, ValidationIssue>()
   for (const error of useful) {
+    const propName = typeof error.params.additionalProperty === 'string'
+      ? error.params.additionalProperty
+      : typeof error.params.unevaluatedProperty === 'string'
+        ? error.params.unevaluatedProperty
+        : null
+    const code = propName && unsupportedEffectKeys.has(propName)
+      ? `unsupported.${propName}`
+      : `schema.${error.keyword}`
     const path = pathFromError(error)
     const message = messageFromError(error)
     const key = `${path}:${message}`
     unique.set(key, {
-      code: `schema.${error.keyword}`,
+      code,
       message,
       path,
       severity: 'error',
@@ -72,10 +81,62 @@ const parseErrorIssue = (error: unknown, source: string): ValidationIssue => {
   }
 }
 
+const extractGradientId = (paint?: string): string | null => {
+  if (!paint || !paint.startsWith('url(#') || !paint.endsWith(')')) {
+    return null
+  }
+  return paint.slice(5, -1)
+}
+
 const semanticIssues = (scene: VectorScene): ValidationIssue[] => {
   const issues: ValidationIssue[] = []
   const ids = new Set<string>()
+  const gradientIds = new Set<string>()
+  const layerIds = new Set<string>()
+  const workspaceIds = new Set<string>()
   let objectCount = 0
+
+  const registerGradient = (gradient: SceneGradient, path: string): void => {
+    if (gradientIds.has(gradient.id)) {
+      issues.push({
+        code: 'semantic.duplicateGradientId',
+        message: `Gradient id “${gradient.id}” is not unique`,
+        path: `${path}/id`,
+        severity: 'error',
+      })
+    }
+    gradientIds.add(gradient.id)
+  }
+
+  for (const [index, gradient] of (scene.gradients ?? []).entries()) {
+    registerGradient(gradient, `/gradients/${index}`)
+  }
+  for (const [index, gradient] of (scene.document.gradients ?? []).entries()) {
+    registerGradient(gradient, `/document/gradients/${index}`)
+  }
+  for (const [index, ws] of (scene.document.workspaces ?? []).entries()) {
+    if (workspaceIds.has(ws.id)) {
+      issues.push({
+        code: 'semantic.duplicateWorkspaceId',
+        message: `Workspace id “${ws.id}” is not unique`,
+        path: `/document/workspaces/${index}/id`,
+        severity: 'error',
+      })
+    }
+    workspaceIds.add(ws.id)
+  }
+
+  const checkPaintRef = (paint: string | undefined, path: string): void => {
+    const gradId = extractGradientId(paint)
+    if (gradId && !gradientIds.has(gradId)) {
+      issues.push({
+        code: 'semantic.missingGradient',
+        message: `Referenced gradient “${gradId}” does not exist`,
+        path,
+        severity: 'error',
+      })
+    }
+  }
 
   const walk = (objects: SceneObject[], depth: number, basePath: string): void => {
     if (depth > engineLimits.depth) {
@@ -100,6 +161,8 @@ const semanticIssues = (scene: VectorScene): ValidationIssue[] => {
         })
       }
       ids.add(object.id)
+      checkPaintRef(object.fill, `${path}/fill`)
+      checkPaintRef(object.stroke, `${path}/stroke`)
 
       if (object.type === 'path') {
         if (object.d.length > engineLimits.pathLength) {
@@ -124,6 +187,20 @@ const semanticIssues = (scene: VectorScene): ValidationIssue[] => {
         walk(object.children, depth + 1, `${path}/children`)
       }
     }
+  }
+
+  for (const [layerIndex, layer] of (scene.layers ?? []).entries()) {
+    const layerPath = `/layers/${layerIndex}`
+    if (layerIds.has(layer.id)) {
+      issues.push({
+        code: 'semantic.duplicateLayerId',
+        message: `Layer id “${layer.id}” is not unique`,
+        path: `${layerPath}/id`,
+        severity: 'error',
+      })
+    }
+    layerIds.add(layer.id)
+    walk(layer.objects, 1, `${layerPath}/objects`)
   }
 
   walk(scene.objects, 1, '/objects')
@@ -180,6 +257,32 @@ export const validateSceneSource = (source: string): ValidationResult => {
     value = JSON.parse(source)
   } catch (error) {
     return { valid: false, issues: [parseErrorIssue(error, source)] }
+  }
+
+  if (value && typeof value === 'object') {
+    const raw = value as Record<string, unknown>
+    const grads = [
+      ...(Array.isArray(raw.gradients) ? raw.gradients : []),
+      ...(raw.document && typeof raw.document === 'object' && Array.isArray((raw.document as Record<string, unknown>).gradients)
+        ? (raw.document as Record<string, unknown>).gradients as unknown[]
+        : []),
+    ]
+    for (const [idx, item] of grads.entries()) {
+      if (item && typeof item === 'object' && typeof (item as Record<string, unknown>).type === 'string') {
+        const gType = (item as Record<string, unknown>).type as string
+        if (gType !== 'linear' && gType !== 'radial') {
+          return {
+            valid: false,
+            issues: [{
+              code: 'unsupported.gradient',
+              message: `Unsupported gradient type “${gType}”`,
+              path: `/gradients/${idx}/type`,
+              severity: 'error',
+            }],
+          }
+        }
+      }
+    }
   }
 
   if (!validateSchema(value)) {
