@@ -11,6 +11,20 @@
     "document": {
       "$ref": "#/$defs/document"
     },
+    "gradients": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/gradient"
+      }
+    },
+    "layers": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/layer"
+      }
+    },
     "objects": {
       "type": "array",
       "maxItems": 10000,
@@ -21,6 +35,12 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+    },
     "coordinate": {
       "type": "number",
       "minimum": -1000000,
@@ -39,6 +59,205 @@
     "color": {
       "type": "string",
       "pattern": "^(none|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{4}|#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{8})$"
+    },
+    "paint": {
+      "type": "string",
+      "pattern": "^(none|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{4}|#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{8}|url\\(#[A-Za-z][A-Za-z0-9_.:-]*\\))$"
+    },
+    "workspace": {
+      "type": "object",
+      "required": ["id", "x", "y", "width", "height"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "x": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "width": {
+          "$ref": "#/$defs/positiveSize"
+        },
+        "height": {
+          "$ref": "#/$defs/positiveSize"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gradientStop": {
+      "type": "object",
+      "required": ["offset", "color"],
+      "properties": {
+        "offset": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "gradientBase": {
+      "type": "object",
+      "required": ["id", "type", "stops"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "type": {
+          "enum": ["linear", "radial"]
+        },
+        "gradientUnits": {
+          "enum": ["objectBoundingBox", "userSpaceOnUse"]
+        },
+        "spreadMethod": {
+          "enum": ["pad", "reflect", "repeat"]
+        },
+        "stops": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/gradientStop"
+          }
+        }
+      }
+    },
+    "linearGradient": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/gradientBase"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "linear"
+            },
+            "x1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "x2": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y2": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "radialGradient": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/gradientBase"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "radial"
+            },
+            "cx": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "r": {
+              "$ref": "#/$defs/positiveSize"
+            },
+            "fx": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "fy": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "gradient": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/gradientBase"
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "linear"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/linearGradient"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "radial"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "$ref": "#/$defs/radialGradient"
+          }
+        }
+      ]
+    },
+    "layer": {
+      "type": "object",
+      "required": ["id", "objects"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "objects": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/object"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "document": {
       "type": "object",
@@ -59,6 +278,20 @@
         },
         "background": {
           "$ref": "#/$defs/color"
+        },
+        "gradients": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/gradient"
+          }
+        },
+        "workspaces": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/workspace"
+          }
         }
       },
       "additionalProperties": false
@@ -122,19 +355,24 @@
       "required": ["id", "type"],
       "properties": {
         "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "name": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+          "maxLength": 128
+        },
+        "layerId": {
+          "$ref": "#/$defs/identifier"
         },
         "type": {
           "enum": ["rect", "circle", "ellipse", "line", "polygon", "polyline", "path", "text", "group"]
         },
         "fill": {
-          "$ref": "#/$defs/color"
+          "$ref": "#/$defs/paint"
         },
         "stroke": {
-          "$ref": "#/$defs/color"
+          "$ref": "#/$defs/paint"
         },
         "strokeWidth": {
           "type": "number",
@@ -145,6 +383,9 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "blendMode": {
+          "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten"]
         },
         "transform": {
           "$ref": "#/$defs/transform"
