@@ -32,10 +32,6 @@ const handleFile = (event: Event): void => {
 <template>
   <header class="app-header">
     <div class="brand" aria-label="Vector Engine">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="#0052FF" />
-        <path d="M8 9.5 16 24 24 9.5h-5L16 16l-3-6.5Z" fill="#FFFFFF" />
-      </svg>
       <div class="brand-copy">
         <span class="brand-name">VECTOR ENGINE</span>
         <span class="version-badge">v0.1</span>
