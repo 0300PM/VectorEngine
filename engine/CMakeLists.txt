@@ -26,6 +26,7 @@ FetchContent_MakeAvailable(nlohmann_json stb)
 add_library(vector_engine_core
     src/core/engine.cpp
     src/json/parser.cpp
+    src/geometry/bounds.cpp
     src/geometry/path.cpp
     src/geometry/transform.cpp
     src/scene/types.cpp
@@ -56,6 +57,7 @@ endif()
 if(VECTOR_ENGINE_BUILD_CLI AND NOT EMSCRIPTEN)
     add_executable(vector-engine src/cli/main.cpp)
     target_link_libraries(vector-engine PRIVATE vector_engine::core)
+    target_compile_features(vector_engine_core PUBLIC cxx_std_23)
     target_compile_features(vector-engine PRIVATE cxx_std_23)
 endif()
 
@@ -101,6 +103,7 @@ if(VECTOR_ENGINE_BUILD_TESTS AND NOT EMSCRIPTEN)
         tests/svg_test.cpp
         tests/raster_test.cpp
         tests/encoder_test.cpp
+        tests/export_pipeline_test.cpp
     )
     target_link_libraries(vector_engine_tests PRIVATE vector_engine::core Catch2::Catch2WithMain)
     target_compile_features(vector_engine_tests PRIVATE cxx_std_23)
