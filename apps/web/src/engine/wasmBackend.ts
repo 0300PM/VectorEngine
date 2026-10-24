@@ -1,89 +1,258 @@
 import type {
+  BackendExportOptions,
+  BackendExportResult,
   EngineBackend,
-  ExportOptions,
-  ExportResult,
+  ExportRegion,
+  ExportTarget,
   RenderOptions,
   RenderResult,
+  ValidationIssue,
   ValidationResult,
 } from '@/types/engine'
 import { VectorEngineError } from './errors'
 
-type WasmEngineInstance = {
-  validateJson(source: string): string
-  renderSvg(source: string, width: number, height: number, background: string): string
-  exportBinary(source: string, format: string, width: number, height: number, quality: number, background: string): Uint8Array
-  delete(): void
+interface RawWasmExports {
+  memory: WebAssembly.Memory
+  _initialize?: () => void
+  ve_alloc: (size: number) => number
+  ve_free: (ptr: number) => void
+  ve_validate: (ptr: number, len: number) => number
+  ve_render_scoped: (srcPtr: number, srcLen: number, optPtr: number, optLen: number) => number
+  ve_export_scoped: (srcPtr: number, srcLen: number, optPtr: number, optLen: number) => number
+  ve_measure_bounds: (srcPtr: number, srcLen: number, optPtr: number, optLen: number) => number
+  ve_text_ptr: () => number
+  ve_text_len: () => number
+  ve_binary_ptr: () => number
+  ve_binary_len: () => number
+  ve_clear_buffers: () => void
 }
 
-type WasmModule = {
-  Engine: new () => WasmEngineInstance
-}
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder('utf-8')
 
-type WasmFactory = (options: { locateFile: (file: string) => string }) => Promise<WasmModule>
-
-declare global {
-  interface Window {
-    createVectorEngineModule?: WasmFactory
+const createWasiImports = (getMemory: () => WebAssembly.Memory | null): WebAssembly.ModuleImports => {
+  const handlers: Record<string, (...args: number[]) => number> = {
+    args_get: () => 0,
+    args_sizes_get: (countPtr = 0, bufSizePtr = 0) => {
+      const mem = getMemory()
+      if (mem) {
+        const view = new DataView(mem.buffer)
+        view.setUint32(countPtr, 0, true)
+        view.setUint32(bufSizePtr, 0, true)
+      }
+      return 0
+    },
+    environ_get: () => 0,
+    environ_sizes_get: (countPtr = 0, bufSizePtr = 0) => {
+      const mem = getMemory()
+      if (mem) {
+        const view = new DataView(mem.buffer)
+        view.setUint32(countPtr, 0, true)
+        view.setUint32(bufSizePtr, 0, true)
+      }
+      return 0
+    },
+    clock_time_get: () => 0,
+    fd_close: () => 0,
+    fd_fdstat_get: () => 0,
+    fd_seek: () => 0,
+    fd_write: () => 0,
+    proc_exit: () => 0,
+    random_get: (ptr = 0, len = 0) => {
+      const mem = getMemory()
+      if (mem) {
+        new Uint8Array(mem.buffer, ptr, len).fill(0)
+      }
+      return 0
+    },
   }
-}
 
-const loadFactory = async (): Promise<WasmFactory> => {
-  if (window.createVectorEngineModule) {
-    return window.createVectorEngineModule
-  }
-
-  const response = await fetch('/wasm/vector_engine.js', { method: 'HEAD', cache: 'no-store' })
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!response.ok || !contentType.includes('javascript')) {
-    throw new VectorEngineError('wasm.unavailable', 'WebAssembly artifacts are not installed')
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = '/wasm/vector_engine.js'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new VectorEngineError('wasm.load', 'Failed to load the WebAssembly module'))
-    document.head.append(script)
+  return new Proxy(handlers, {
+    get(target, key: string) {
+      return target[key] ?? (() => 0)
+    },
   })
-
-  if (!window.createVectorEngineModule) {
-    throw new VectorEngineError('wasm.factory', 'The WebAssembly module did not expose its factory')
-  }
-  return window.createVectorEngineModule
 }
 
-const mimeByFormat = {
-  svg: 'image/svg+xml',
-  png: 'image/png',
-  jpeg: 'image/jpeg',
-  bmp: 'image/bmp',
-} as const
+const instantiateReactor = async (baseUrl: string, wasmBinary?: ArrayBuffer): Promise<RawWasmExports> => {
+  let memoryRef: WebAssembly.Memory | null = null
+  const imports: WebAssembly.Imports = {
+    wasi_snapshot_preview1: createWasiImports(() => memoryRef),
+  }
 
-const extensionByFormat = {
-  svg: 'svg',
-  png: 'png',
-  jpeg: 'jpg',
-  bmp: 'bmp',
-} as const
+  let instance: WebAssembly.Instance
+  if (wasmBinary) {
+    const instantiated = await WebAssembly.instantiate(wasmBinary, imports)
+    instance = instantiated.instance
+  } else {
+    const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+    const relativeWasm = `${normalizedBase}wasm/vector_engine.wasm`
+    const origin = typeof globalThis.location?.origin === 'string' && globalThis.location.origin !== 'null'
+      ? globalThis.location.origin
+      : undefined
+    const wasmUrl = origin ? new URL(relativeWasm, origin).href : relativeWasm
+
+    const response = await fetch(wasmUrl)
+    if (!response.ok) {
+      throw new VectorEngineError('wasm.unavailable', `Failed to fetch WebAssembly binary (${response.status})`)
+    }
+
+    if (typeof WebAssembly.instantiateStreaming === 'function') {
+      try {
+        const streamed = await WebAssembly.instantiateStreaming(response.clone(), imports)
+        instance = streamed.instance
+      } catch {
+        const bytes = await response.arrayBuffer()
+        const fallback = await WebAssembly.instantiate(bytes, imports)
+        instance = fallback.instance
+      }
+    } else {
+      const bytes = await response.arrayBuffer()
+      const instantiated = await WebAssembly.instantiate(bytes, imports)
+      instance = instantiated.instance
+    }
+  }
+
+  const exports = instance.exports as unknown as RawWasmExports
+  memoryRef = exports.memory
+  exports._initialize?.()
+  return exports
+}
+
+const serializeScopedOptions = (options: RenderOptions | BackendExportOptions): string => {
+  const payload: Record<string, unknown> = {
+    scale: options.scale ?? 1,
+    width: options.width ?? 0,
+    height: options.height ?? 0,
+    margin: options.margin ?? 0,
+    fitMode: options.fitMode ?? (options.preserveAspectRatio === false ? 'stretch' : 'contain'),
+    preserveAspectRatio: options.preserveAspectRatio ?? true,
+    includeHidden: Boolean(options.includeHidden),
+    trimToBounds: Boolean(options.trimToBounds),
+    clipToBounds: Boolean(options.clipToBounds),
+    minifySvg: Boolean(options.minifySvg),
+  }
+
+  if ('format' in options) {
+    payload.format = options.format
+    payload.quality = options.quality
+    payload.bmpBitDepth = options.bmpBitDepth ?? 24
+    if (options.maxMemoryBytes !== undefined) {
+      payload.maxMemoryBytes = options.maxMemoryBytes
+    }
+    if (options.qualityExplicit) {
+      payload.qualityExplicit = true
+    }
+    if (options.minifyExplicit) {
+      payload.minifyExplicit = true
+    }
+  }
+
+  if (options.background === null || options.background === 'transparent') {
+    payload.background = 'transparent'
+  } else if (options.background === undefined || options.background === 'document') {
+    payload.background = 'document'
+  } else if (typeof options.background === 'object') {
+    payload.background = { color: options.background.color }
+  } else {
+    payload.background = options.background
+  }
+
+  if (options.target) {
+    payload.target = options.target
+  }
+
+  return JSON.stringify(payload)
+}
 
 export class WasmBackend implements EngineBackend {
   readonly name = 'C++23 · WebAssembly'
-  private readonly instance: WasmEngineInstance
 
-  private constructor(instance: WasmEngineInstance) {
-    this.instance = instance
+  constructor(private readonly exports: RawWasmExports) {}
+
+  static async create(
+    baseUrl = '/',
+    wasmBinary?: ArrayBuffer,
+  ): Promise<WasmBackend> {
+    const rawExports = await instantiateReactor(baseUrl, wasmBinary)
+    return new WasmBackend(rawExports)
   }
 
-  static async create(): Promise<WasmBackend> {
-    const factory = await loadFactory()
-    const module = await factory({
-      locateFile: (file) => `/wasm/${file.split('/').at(-1) ?? file}`,
-    })
-    return new WasmBackend(new module.Engine())
+  private allocUtf8(value: string): { ptr: number; len: number } {
+    const encoded = textEncoder.encode(value)
+    const ptr = this.exports.ve_alloc(encoded.byteLength)
+    new Uint8Array(this.exports.memory.buffer, ptr, encoded.byteLength).set(encoded)
+    return { ptr, len: encoded.byteLength }
+  }
+
+  private readText(): string {
+    const ptr = this.exports.ve_text_ptr()
+    const len = this.exports.ve_text_len()
+    return textDecoder.decode(new Uint8Array(this.exports.memory.buffer, ptr, len))
+  }
+
+  private readBytes(): Uint8Array {
+    const ptr = this.exports.ve_binary_ptr()
+    const len = this.exports.ve_binary_len()
+    const out = new Uint8Array(len)
+    if (len > 0) {
+      out.set(new Uint8Array(this.exports.memory.buffer, ptr, len))
+    }
+    this.exports.ve_clear_buffers()
+    return out
   }
 
   async validate(source: string): Promise<ValidationResult> {
-    return JSON.parse(this.instance.validateJson(source)) as ValidationResult
+    const src = this.allocUtf8(source)
+    let rawText = ''
+    try {
+      this.exports.ve_validate(src.ptr, src.len)
+      rawText = this.readText()
+    } finally {
+      this.exports.ve_free(src.ptr)
+      this.exports.ve_clear_buffers()
+    }
+
+    const raw = JSON.parse(rawText) as ValidationResult
+    if (!raw.valid) {
+      return raw
+    }
+    const scene = JSON.parse(source) as ValidationResult['scene']
+    return {
+      valid: true,
+      issues: raw.issues,
+      ...(scene ? { scene } : {}),
+    }
+  }
+
+  async measureBounds(source: string, target: ExportTarget, includeHidden = false): Promise<ExportRegion | null> {
+    const src = this.allocUtf8(source)
+    const opt = this.allocUtf8(JSON.stringify({ target, includeHidden }))
+    let rawText = ''
+    try {
+      this.exports.ve_measure_bounds(src.ptr, src.len, opt.ptr, opt.len)
+      rawText = this.readText()
+    } finally {
+      this.exports.ve_free(src.ptr)
+      this.exports.ve_free(opt.ptr)
+      this.exports.ve_clear_buffers()
+    }
+
+    const raw = JSON.parse(rawText) as {
+      ok: boolean
+      empty?: boolean
+      bounds?: ExportRegion
+      issues?: ValidationIssue[]
+    }
+    if (!raw.ok) {
+      const first = raw.issues?.[0]
+      throw new VectorEngineError(
+        first?.code ?? 'wasm.bounds',
+        first?.message ?? 'Bounds measurement failed',
+        raw.issues ?? [],
+      )
+    }
+    return raw.empty ? null : (raw.bounds ?? null)
   }
 
   async renderSvg(source: string, options: RenderOptions = {}): Promise<RenderResult> {
@@ -91,34 +260,99 @@ export class WasmBackend implements EngineBackend {
     if (!validation.valid || !validation.scene) {
       throw new VectorEngineError('validation.failed', 'Scene validation failed', validation.issues)
     }
-    const width = Math.round(options.width ?? validation.scene.document.width)
-    const height = Math.round(options.height ?? validation.scene.document.height)
-    const background = options.background === undefined
-      ? '__DOCUMENT__'
-      : options.background ?? '__TRANSPARENT__'
-    const svg = this.instance.renderSvg(source, width, height, background)
-    return { svg, width, height }
+
+    const src = this.allocUtf8(source)
+    const opt = this.allocUtf8(serializeScopedOptions(options))
+    let rawText = ''
+    try {
+      this.exports.ve_render_scoped(src.ptr, src.len, opt.ptr, opt.len)
+      rawText = this.readText()
+    } finally {
+      this.exports.ve_free(src.ptr)
+      this.exports.ve_free(opt.ptr)
+      this.exports.ve_clear_buffers()
+    }
+
+    const response = JSON.parse(rawText) as {
+      ok: boolean
+      svg?: string
+      width?: number
+      height?: number
+      bounds?: ExportRegion
+      issues?: ValidationIssue[]
+    }
+    if (!response.ok || response.svg === undefined) {
+      const first = response.issues?.[0]
+      throw new VectorEngineError(
+        first?.code ?? 'wasm.render',
+        first?.message ?? 'WebAssembly SVG rendering failed',
+        response.issues ?? validation.issues,
+      )
+    }
+    return {
+      svg: response.svg,
+      width: response.width ?? validation.scene.document.width,
+      height: response.height ?? validation.scene.document.height,
+      ...(response.bounds ? { bounds: response.bounds } : {}),
+      issues: response.issues ?? validation.issues,
+    }
   }
 
-  async export(source: string, options: ExportOptions): Promise<ExportResult> {
-    const background = options.background ?? '__TRANSPARENT__'
-    const value = this.instance.exportBinary(
-      source,
-      options.format,
-      options.width,
-      options.height,
-      options.quality,
-      background,
-    )
-    const data = new Uint8Array(value)
+  async export(source: string, options: BackendExportOptions): Promise<BackendExportResult> {
+    const validation = await this.validate(source)
+    if (!validation.valid || !validation.scene) {
+      throw new VectorEngineError('validation.failed', 'Scene validation failed', validation.issues)
+    }
+
+    const src = this.allocUtf8(source)
+    const opt = this.allocUtf8(serializeScopedOptions(options))
+    let rawMeta = ''
+    try {
+      this.exports.ve_export_scoped(src.ptr, src.len, opt.ptr, opt.len)
+      rawMeta = this.readText()
+    } finally {
+      this.exports.ve_free(src.ptr)
+      this.exports.ve_free(opt.ptr)
+    }
+
+    const meta = JSON.parse(rawMeta) as {
+      ok: boolean
+      mimeType?: string
+      extension?: string
+      width?: number
+      height?: number
+      hasAlpha?: boolean
+      bounds?: ExportRegion
+      issues?: ValidationIssue[]
+    }
+    if (!meta.ok) {
+      this.exports.ve_clear_buffers()
+      const first = meta.issues?.[0]
+      throw new VectorEngineError(
+        first?.code ?? 'wasm.export',
+        first?.message ?? 'WebAssembly export failed',
+        meta.issues ?? validation.issues,
+      )
+    }
+
+    const data = this.readBytes()
     return {
       data,
-      mimeType: mimeByFormat[options.format],
-      extension: extensionByFormat[options.format],
+      mimeType: meta.mimeType ?? (options.format === 'svg' ? 'image/svg+xml' : `image/${options.format}`),
+      extension: meta.extension ?? (options.format === 'jpeg' ? 'jpg' : options.format),
+      width: meta.width ?? validation.scene.document.width,
+      height: meta.height ?? validation.scene.document.height,
+      hasAlpha: Boolean(meta.hasAlpha),
+      ...(meta.bounds ? { bounds: meta.bounds } : {}),
+      issues: meta.issues ?? validation.issues,
     }
   }
 
   destroy(): void {
-    this.instance.delete()
+    this.exports.ve_clear_buffers()
+  }
+
+  dispose(): void {
+    this.exports.ve_clear_buffers()
   }
 }
