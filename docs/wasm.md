@@ -2,46 +2,28 @@
 
 ## Build
 
-Activate the Emscripten SDK and use the release preset:
+Compile the native C++23 engine (`engine/src/*.cpp` + `engine/src/wasm_reactor.cpp`) into optimized `-O3` WebAssembly artifacts via:
 
 ```bash
-source /path/to/emsdk/emsdk_env.sh
-cmake --preset wasm-release
-cmake --build --preset wasm-release
+npm run wasm:build
+npm run verify:wasm
 ```
 
-The post-build step copies the generated JavaScript loader and WebAssembly binary into `apps/web/public/wasm`. The release target disables dynamic JavaScript execution so the loader works with the deployment Content Security Policy without unrestricted `unsafe-eval`.
+`scripts/build-wasm.mjs` compiles all C++23 engine translation units with `-std=c++23 -O3 -ffunction-sections -fdata-sections -Wl,--gc-sections -Wl,--strip-all` targeting `wasm32-wasi` reactor mode and emits `apps/web/public/wasm/vector_engine.wasm` alongside the CSP-compliant JavaScript loader `apps/web/public/wasm/vector_engine.js`.
 
 ## Public boundary
 
-The Emscripten class exposes three operations:
+The WebAssembly engine instance exposes:
 
-- `validateJson(source)` returns a JSON validation result.
-- `renderSvg(source, width, height, background)` returns an owned JavaScript string.
-- `exportBinary(source, format, width, height, quality, background)` returns an owned `Uint8Array`.
+- `validateJson(source)` — validates structural schema, unique identifiers, gradients, layers, workspaces, and limits.
+- `measureBounds(source, optionsJson)` — computes exact analytical bounding boxes across composed affine transforms and strokes.
+- `renderScopedSvg(source, optionsJson)` — extracts target scope, resolves viewport/margin/clip/fit options, and returns SVG markup plus metadata.
+- `exportScopedMeta(source, optionsJson)` & `takeLastBytes()` — rasterizes/encodes SVG, PNG, JPEG, BMP 24-bit, or BMP 32-bit outputs and copies owned `Uint8Array` bytes across linear memory once.
+- `renderSvg(...)` & `exportBinary(...)` — legacy convenience entrypoints.
 
-The public surface is intentionally small. Vue components depend only on the TypeScript `EngineBackend` contract.
+## Dedicated Worker Execution
 
-## Initialization
+`WorkerBackend` spawns `exportWorker.ts` off the main UI thread:
 
-The adapter checks for the generated loader, injects it as a classic script, creates the module asynchronously, and constructs one engine instance. Initialization failures are caught and converted into the development fallback backend.
-
-## Memory ownership
-
-Input strings are copied into Emscripten-managed call arguments. SVG results are copied to JavaScript strings. Encoded C++ vectors are copied into a new JavaScript `Uint8Array` before the native result is destroyed. JavaScript never retains a view into growable WebAssembly memory.
-
-The Embind engine instance is deleted when the backend is destroyed.
-
-## Deployment
-
-Serve `vector_engine.js` and `vector_engine.wasm` from the same `/wasm` directory. The adapter supplies `locateFile`, so the loader resolves the binary correctly under Vite development, preview, and static production hosting.
-
-Use the correct MIME type for the binary:
-
-```text
-application/wasm
-```
-
-## Worker migration
-
-The backend interface is serializable and can move behind a module worker. Source strings and SVG strings use structured cloning. Encoded `ArrayBuffer` values should be transferred rather than cloned. Vue and store code do not require changes when this optimization is introduced.
+- Encoded byte buffers cross back to the main thread via zero-copy `Transferable` `ArrayBuffer` transfers.
+- Aborting an `AbortSignal` terminates an in-flight worker immediately without blocking UI responsiveness and transparently initializes a clean worker on the next operation.
