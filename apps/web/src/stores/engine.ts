@@ -13,6 +13,13 @@ import {
   createPathObject,
   nextObjectId,
 } from '@/paths/editor'
+export type PanelId = 'json' | 'properties' | 'export' | 'toolbar' | 'statusbar' | 'banner'
+
+/** Panels that own a workspace column and can collapse into a slim rail. */
+export type CollapsiblePanelId = 'json' | 'properties' | 'export'
+
+export const COLLAPSIBLE_PANELS: readonly CollapsiblePanelId[] = ['json', 'properties', 'export']
+
 import { hitTestScene } from '@/canvas/hitTest'
 import { createGuide, moveGuide } from '@/canvas/guides'
 import type { PathCommand } from '@/paths/editor'
@@ -452,6 +459,7 @@ export const useEngineStore = defineStore('engine', () => {
   }
 
   const initialize = async (): Promise<void> => {
+    restorePanels()
     renderState.value = 'initializing'
     backend.value = await createBackend()
     backendName.value = backend.value.name
@@ -757,7 +765,7 @@ export const useEngineStore = defineStore('engine', () => {
   const applyBooleanToSelection = (operation: BooleanOperation): boolean => {
     const targets = selectedPathObjects()
     if (targets.length < 2) {
-      pathNotice.value = 'Wybierz dwie ścieżki'
+      pathNotice.value = 'Select two paths'
       return false
     }
     const [first, second] = targets
@@ -1051,6 +1059,120 @@ export const useEngineStore = defineStore('engine', () => {
   const fullscreen = ref(false)
   const cursorDocumentPoint = ref<Point | null>(null)
   let savedFullscreenView: ViewState = createView()
+
+  const PANELS_STORAGE_KEY = 'vector-engine.panels'
+  const COLLAPSED_STORAGE_KEY = 'vector-engine.panel-collapse'
+
+  const panelVisible = ref<Record<PanelId, boolean>>({
+    json: true,
+    properties: true,
+    export: true,
+    toolbar: true,
+    statusbar: true,
+    banner: true,
+  })
+
+  const panelCollapsed = ref<Record<CollapsiblePanelId, boolean>>({
+    json: false,
+    properties: false,
+    export: false,
+  })
+
+  const restorePanels = (): void => {
+    if (typeof localStorage === 'undefined') {
+      return
+    }
+    try {
+      const raw = localStorage.getItem(PANELS_STORAGE_KEY)
+      if (raw) {
+        const stored = JSON.parse(raw) as Partial<Record<PanelId, boolean>>
+        const next = { ...panelVisible.value }
+        for (const key of Object.keys(stored) as PanelId[]) {
+          if (typeof stored[key] === 'boolean') {
+            next[key] = stored[key] as boolean
+          }
+        }
+        panelVisible.value = next
+      }
+    } catch {
+      // ignore malformed storage
+    }
+    try {
+      const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY)
+      if (!raw) {
+        return
+      }
+      const stored = JSON.parse(raw) as Partial<Record<CollapsiblePanelId, boolean>>
+      const next = { ...panelCollapsed.value }
+      for (const key of Object.keys(stored) as CollapsiblePanelId[]) {
+        if (typeof stored[key] === 'boolean') {
+          next[key] = stored[key] as boolean
+        }
+      }
+      panelCollapsed.value = next
+    } catch {
+      return
+    }
+  }
+
+  const persistPanels = (): void => {
+    if (typeof localStorage === 'undefined') {
+      return
+    }
+    try {
+      localStorage.setItem(PANELS_STORAGE_KEY, JSON.stringify(panelVisible.value))
+    } catch {
+      // ignore quota errors
+    }
+    try {
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(panelCollapsed.value))
+    } catch {
+      // ignore quota errors
+    }
+  }
+
+  const togglePanel = (id: PanelId): void => {
+    panelVisible.value = { ...panelVisible.value, [id]: !panelVisible.value[id] }
+  }
+
+  const setPanelVisible = (id: PanelId, value: boolean): void => {
+    panelVisible.value = { ...panelVisible.value, [id]: value }
+  }
+
+  const setPanelCollapsed = (id: CollapsiblePanelId, value: boolean): void => {
+    if (panelCollapsed.value[id] === value) {
+      return
+    }
+    panelCollapsed.value = { ...panelCollapsed.value, [id]: value }
+    if (!value) {
+      panelVisible.value = { ...panelVisible.value, [id]: true }
+    }
+  }
+
+  const togglePanelCollapsed = (id: CollapsiblePanelId): void => {
+    setPanelCollapsed(id, !panelCollapsed.value[id])
+  }
+
+  const expandPanels = (): void => {
+    panelCollapsed.value = { json: false, properties: false, export: false }
+  }
+
+  const collapsePanels = (): void => {
+    panelCollapsed.value = { json: true, properties: true, export: true }
+  }
+
+  const bannerVisible = computed(() => panelVisible.value.banner)
+
+  const dismissBanner = (): void => {
+    panelVisible.value = { ...panelVisible.value, banner: false }
+  }
+
+  const showBanner = (): void => {
+    panelVisible.value = { ...panelVisible.value, banner: true }
+  }
+
+  watch(panelVisible, persistPanels)
+  watch(panelCollapsed, persistPanels)
 
   const documentBounds = computed<Bounds | null>(() => {
     if (!scene.value) {
@@ -1487,6 +1609,17 @@ export const useEngineStore = defineStore('engine', () => {
     documentBounds,
     selectionObjects,
     selectionBounds,
+    panelVisible,
+    togglePanel,
+    setPanelVisible,
+    panelCollapsed,
+    setPanelCollapsed,
+    togglePanelCollapsed,
+    expandPanels,
+    collapsePanels,
+    bannerVisible,
+    dismissBanner,
+    showBanner,
     buildSnapCandidates,
     setViewport,
     setView,
