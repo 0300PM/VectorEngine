@@ -11,13 +11,13 @@ export interface PathToolDefinition {
 }
 
 export const PATH_TOOLS: readonly PathToolDefinition[] = [
-  { kind: 'select', label: 'Wybór', icon: 'cursor', cursor: 'default', hint: 'Wybierz ścieżkę i edytuj punkty' },
-  { kind: 'line', label: 'Linia', icon: 'line', cursor: 'crosshair', hint: 'Kliknij, aby zarysować segment' },
-  { kind: 'polyline', label: 'Wielościęń', icon: 'polyline', cursor: 'crosshair', hint: 'Kliknij, aby zarysować wielościęń' },
-  { kind: 'pen', label: 'Rysownik', icon: 'pen', cursor: 'crosshair', hint: 'Kliknij, aby dodać punkt, długo przycisz, aby zmienić pochyłkie' },
-  { kind: 'arc', label: 'Łuk', icon: 'arc', cursor: 'crosshair', hint: 'Naciśnij i pociągnij, aby zarysować łuk' },
-  { kind: 'polygon', label: 'Wielokąt', icon: 'polygon', cursor: 'crosshair', hint: 'Kliknij, aby zarysować wielokąt' },
-  { kind: 'star', label: 'Gwiazda', icon: 'star', cursor: 'crosshair', hint: 'Naciśnij i pociągnij, aby zarysować gwiazdę' },
+  { kind: 'select', label: 'Select', icon: 'cursor', cursor: 'default', hint: 'Select a path and edit its nodes' },
+  { kind: 'line', label: 'Line', icon: 'line', cursor: 'crosshair', hint: 'Click to draw a segment' },
+  { kind: 'polyline', label: 'Polyline', icon: 'polyline', cursor: 'crosshair', hint: 'Click to draw a polyline' },
+  { kind: 'pen', label: 'Pen', icon: 'pen', cursor: 'crosshair', hint: 'Click to add a node; drag to pull handles' },
+  { kind: 'arc', label: 'Arc', icon: 'arc', cursor: 'crosshair', hint: 'Press and drag to draw an arc' },
+  { kind: 'polygon', label: 'Polygon', icon: 'polygon', cursor: 'crosshair', hint: 'Click to draw a polygon' },
+  { kind: 'star', label: 'Star', icon: 'star', cursor: 'crosshair', hint: 'Press and drag to draw a star' },
 ] as const
 
 export const PATH_TOOL_LABELS: Record<PathToolKind, string> = PATH_TOOLS.reduce(

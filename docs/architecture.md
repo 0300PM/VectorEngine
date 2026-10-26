@@ -18,9 +18,12 @@ The UI does not depend on C++ implementation details. It communicates through th
 
 ### UI (`apps/web/src/components`)
 
-- `AppHeader.vue` manages document naming, JSON import, scene reset, and single-click export.
+- `AppHeader.vue` manages document naming, JSON import, scene reset, and single-click export, and hosts the three-state panel toggles (`expanded → rail → hidden`).
+- `AppBanner.vue` renders the dismissible product banner; the shell reserves its grid row only while it is mounted.
+- `InspectorSection.vue` is the shared accordion header for inspector groups and export steps, backed by `useCollapsibleSection` (`localStorage`: `vector-engine.sections`).
 - `JsonEditor.vue` provides a CodeMirror 6 JSON editor with inline validation diagnostics.
 - `PreviewPanel.vue` renders the live scene with zoom controls and an independent editor canvas backdrop (`Grid`, `Light`, `White`, `Dark`) decoupled from the export background.
+- `CanvasControls.vue`, `PreviewPanel.vue`, and `PathToolbar.vue` share one responsive contract: the monitor-resolution scale in `apps/web/src/styles/breakpoints.ts` mirrors the media queries in `main.css`, and `docs/responsive-breakpoints.md` documents the resulting column budgets.
 - `ExportPanel.vue` exposes the 7-stage export workflow (`1. Target`, `2. Format`, `3. Dimensions`, `4. Background`, `5. Advanced`, `6. Preview`, `7. Export`) supporting both single-file and multi-item batch/ZIP pipelines with live cancellation.
 
 ### Export Orchestration (`apps/web/src/export`)

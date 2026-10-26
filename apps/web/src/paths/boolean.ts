@@ -13,10 +13,10 @@ import { flattenToPolygons, hasClosedSubpath, type PolygonShape } from './flatte
 export type BooleanOperation = 'union' | 'subtract' | 'intersect' | 'exclude'
 
 export const BOOLEAN_LABELS: Record<BooleanOperation, string> = {
-  union: 'Łączenie',
-  subtract: 'Odejmowanie',
-  intersect: 'Przecięcie',
-  exclude: 'Wykluczanie',
+  union: 'Union',
+  subtract: 'Subtract',
+  intersect: 'Intersect',
+  exclude: 'Exclude',
 }
 
 export const toRing = (points: Point[]): Ring => points.map(({ x, y }) => [x, y] as Pair)
@@ -79,7 +79,7 @@ export interface BooleanOutcome {
   reason: string
 }
 
-const CLOSED_REQUIRED = 'Wymagane są zamknięte kształty'
+const CLOSED_REQUIRED = 'Closed shapes are required'
 
 export const booleanOnModels = (
   operation: BooleanOperation,

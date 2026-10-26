@@ -1,8 +1,9 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, readdir, readFile } from 'node:fs/promises'
 
 const rootUrl = new URL('../', import.meta.url)
 const configUrl = new URL('vercel.json', rootUrl)
 const outputUrl = new URL('apps/web/dist/', rootUrl)
+const assetsUrl = new URL('assets/', outputUrl)
 const indexUrl = new URL('index.html', outputUrl)
 const loaderUrl = new URL('wasm/vector_engine.js', outputUrl)
 const binaryUrl = new URL('wasm/vector_engine.wasm', outputUrl)
@@ -50,4 +51,61 @@ if (binary.length < 8 || binary[0] !== 0x00 || binary[1] !== 0x61 || binary[2] !
   throw new Error('Deployed WebAssembly binary has an invalid header')
 }
 
-process.stdout.write('Verified Vercel output, SPA routing, CSP, and WebAssembly delivery\n')
+// The responsive scale is authored in CSS, so verify the minified bundle really
+// carries every monitor tier instead of trusting the source file alone.
+const assetFiles = await readdir(assetsUrl)
+const styleFiles = assetFiles.filter((file) => file.endsWith('.css'))
+if (styleFiles.length === 0) {
+  throw new Error('Production build has no stylesheet')
+}
+const stylesheet = (
+  await Promise.all(styleFiles.map((file) => readFile(new URL(file, assetsUrl), 'utf8')))
+).join('\n')
+
+if (!stylesheet.includes('--col-export')) {
+  throw new Error('Production stylesheet is missing the workspace column variables')
+}
+
+const requiredTiers = [1280, 1366, 1440, 1600, 1680, 1920, 2048, 2560, 3440, 3840, 5120]
+const hasTier = (width) =>
+  new RegExp(`min-width:\\s*${width}px|width\\s*>=\\s*${width}px`).test(stylesheet)
+const missingTiers = requiredTiers.filter((width) => !hasTier(width))
+if (missingTiers.length > 0) {
+  throw new Error(`Production stylesheet is missing monitor tiers: ${missingTiers.join(', ')}px`)
+}
+
+// Brand assets: favicon set, web app manifest, and the social banner.
+const brandAssets = [
+  'favicon.svg',
+  'favicon.ico',
+  'favicon-32.png',
+  'apple-touch-icon.png',
+  'icon-192.png',
+  'icon-512.png',
+  'site.webmanifest',
+  'brand/social-card.png',
+  'brand/banner-icon.svg',
+]
+const missingAssets = []
+for (const asset of brandAssets) {
+  try {
+    await access(new URL(asset, outputUrl))
+  } catch {
+    missingAssets.push(asset)
+  }
+}
+if (missingAssets.length > 0) {
+  throw new Error(`Production output is missing brand assets: ${missingAssets.join(', ')}`)
+}
+
+const manifest = JSON.parse(await readFile(new URL('site.webmanifest', outputUrl), 'utf8'))
+if (!Array.isArray(manifest.icons) || manifest.icons.length < 2) {
+  throw new Error('Web app manifest does not declare the icon set')
+}
+if (!index.includes('rel="icon"') || !index.includes('/brand/social-card.png')) {
+  throw new Error('Production index is missing favicon or social banner metadata')
+}
+
+process.stdout.write(
+  'Verified Vercel output, SPA routing, CSP, WebAssembly delivery, 11 monitor breakpoints, favicon, and banner\n',
+)

@@ -112,7 +112,7 @@ export const buildBooleanObject = (
 ): BooleanOutcome => {
   const outcome = booleanOnModels(operation, left, right)
   if (!outcome.supported || outcome.polygons.length === 0) {
-    return { object: null, reason: outcome.reason || 'Brak wyniku' }
+    return { object: null, reason: outcome.reason || 'No result' }
   }
   return { object: createPathObject(outcome.model, options), reason: '' }
 }

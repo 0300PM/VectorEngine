@@ -62,11 +62,16 @@ button:disabled {
 }
 
 .app-shell {
+  --rail: 44px;
   display: grid;
-  grid-template-rows: 64px minmax(0, 1fr) 28px;
+  grid-template-rows: 64px auto minmax(0, 1fr) 28px;
   width: 100%;
   height: 100dvh;
   background: #ffffff;
+}
+
+.app-shell:not(:has(.app-banner)) {
+  grid-template-rows: 64px minmax(0, 1fr) 28px;
 }
 
 .app-header {
@@ -171,6 +176,38 @@ button:disabled {
   min-width: 0;
 }
 
+.panel-toggles {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+  padding-right: 8px;
+  border-right: 1px solid var(--line);
+}
+
+.panel-toggle {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.panel-toggle:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.panel-toggle.is-off {
+  color: var(--soft-muted);
+  opacity: 0.4;
+}
+
 .button,
 .icon-text-button {
   display: inline-flex;
@@ -225,8 +262,13 @@ button:disabled {
 }
 
 .workspace {
+  --col-source: minmax(300px, 27%);
+  --col-preview: minmax(330px, 1fr);
+  --col-properties: 300px;
+  --col-export: 280px;
   display: grid;
-  grid-template-columns: minmax(300px, 27%) minmax(330px, 1fr) 320px 300px;
+  grid-template-columns: var(--col-source) var(--col-preview) var(--col-properties) var(--col-export);
+  position: relative;
   min-height: 0;
   overflow: hidden;
   background: var(--panel);
@@ -778,6 +820,7 @@ button:disabled {
 }
 
 .app-shell.is-fullscreen .app-header,
+.app-shell.is-fullscreen .app-banner,
 .app-shell.is-fullscreen .status-bar,
 .app-shell.is-fullscreen .mobile-tabs {
   display: none;
@@ -2063,7 +2106,10 @@ button:disabled {
 
 @media (max-width: 1180px) {
   .workspace {
-    grid-template-columns: minmax(280px, 32%) minmax(300px, 1fr) 300px 280px;
+    --col-source: minmax(280px, 32%);
+    --col-preview: minmax(300px, 1fr);
+    --col-properties: 300px;
+    --col-export: 280px;
   }
 
   .preview-meta .meta-separator,
@@ -2075,6 +2121,10 @@ button:disabled {
 
 @media (max-width: 900px) {
   .app-shell {
+    grid-template-rows: 58px auto 46px minmax(0, 1fr) 28px;
+  }
+
+  .app-shell:not(:has(.app-banner)) {
     grid-template-rows: 58px 46px minmax(0, 1fr) 28px;
   }
 
@@ -2152,6 +2202,10 @@ button:disabled {
     width: 100%;
     height: 100%;
     border: 0;
+  }
+
+  .panel-rail {
+    display: none;
   }
 
   .mobile-panel-hidden {
@@ -2362,4 +2416,631 @@ button:disabled {
 
 .node-box.is-corner {
   stroke: #7c8698;
+}
+
+@media (min-width: 901px) {
+  .panel-hidden {
+    display: none;
+  }
+}
+
+/* Monitor width scale: one tier per common desktop resolution. */
+@media (min-width: 1280px) {
+  .workspace {
+    --col-source: minmax(300px, 27%);
+    --col-preview: minmax(330px, 1fr);
+    --col-properties: 310px;
+    --col-export: 290px;
+  }
+
+  .panel-heading {
+    min-height: 52px;
+  }
+}
+
+@media (min-width: 1366px) {
+  .workspace {
+    --col-source: minmax(320px, 27%);
+    --col-preview: minmax(340px, 1fr);
+    --col-properties: 320px;
+    --col-export: 300px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .workspace {
+    --col-source: minmax(340px, 28%);
+    --col-preview: minmax(360px, 1fr);
+    --col-properties: 340px;
+    --col-export: 320px;
+  }
+
+  .app-header {
+    padding: 0 20px;
+  }
+
+  .status-group {
+    gap: 16px;
+  }
+
+  .status-bar {
+    font-size: 9.5px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .workspace {
+    --col-source: minmax(360px, 28%);
+    --col-preview: minmax(400px, 1fr);
+    --col-properties: 350px;
+    --col-export: 330px;
+  }
+
+  .app-header {
+    padding: 0 22px;
+  }
+
+  .status-bar {
+    font-size: 9.75px;
+  }
+}
+
+@media (min-width: 1680px) {
+  .workspace {
+    --col-source: minmax(380px, 29%);
+    --col-preview: minmax(420px, 1fr);
+    --col-properties: 360px;
+    --col-export: 340px;
+  }
+
+  .app-header {
+    padding: 0 24px;
+  }
+
+  .status-bar {
+    font-size: 10px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .app-shell {
+    grid-template-rows: 70px auto minmax(0, 1fr) 32px;
+  }
+
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 70px minmax(0, 1fr) 32px;
+  }
+
+  .workspace {
+    --col-source: minmax(420px, 30%);
+    --col-preview: minmax(480px, 1fr);
+    --col-properties: 380px;
+    --col-export: 360px;
+  }
+
+  .app-header {
+    padding: 0 32px;
+  }
+
+  .status-bar {
+    font-size: 10.5px;
+  }
+
+  .preview-controls {
+    height: 38px;
+    bottom: 22px;
+  }
+}
+
+@media (min-width: 2048px) {
+  .workspace {
+    --col-source: minmax(450px, 30%);
+    --col-preview: minmax(520px, 1fr);
+    --col-properties: 400px;
+    --col-export: 370px;
+  }
+
+  .app-header {
+    padding: 0 36px;
+  }
+
+  .status-bar {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .app-shell {
+    max-width: 3200px;
+    margin: 0 auto;
+  }
+
+  .workspace {
+    --col-source: minmax(480px, 31%);
+    --col-preview: minmax(600px, 1fr);
+    --col-properties: 420px;
+    --col-export: 380px;
+  }
+
+  .status-bar {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 3440px) {
+  .app-shell {
+    max-width: 3800px;
+  }
+
+  .workspace {
+    --col-source: minmax(520px, 30%);
+    --col-preview: minmax(720px, 1fr);
+    --col-properties: 440px;
+    --col-export: 400px;
+  }
+
+  .status-bar {
+    font-size: 11.5px;
+  }
+}
+
+@media (min-width: 3840px) {
+  .app-shell {
+    max-width: none;
+  }
+
+  .workspace {
+    --col-source: minmax(540px, 32%);
+    --col-preview: minmax(800px, 1fr);
+    --col-properties: 460px;
+    --col-export: 420px;
+  }
+
+  .app-header {
+    padding: 0 40px;
+  }
+
+  .status-bar {
+    font-size: 12px;
+  }
+}
+
+@media (min-width: 5120px) {
+  .workspace {
+    --col-source: minmax(600px, 32%);
+    --col-preview: minmax(900px, 1fr);
+    --col-properties: 520px;
+    --col-export: 460px;
+  }
+
+  .app-header {
+    padding: 0 56px;
+  }
+
+  .status-bar {
+    font-size: 13px;
+  }
+
+  .preview-controls {
+    height: 42px;
+    bottom: 28px;
+  }
+}
+
+/* Ultrawide 21:9 monitors give the extra width to the canvas. */
+@media (min-aspect-ratio: 21/9) and (min-width: 2560px) {
+  .app-shell {
+    max-width: none;
+  }
+
+  .workspace {
+    --col-source: minmax(520px, 24%);
+    --col-preview: minmax(900px, 1fr);
+  }
+}
+
+/* Monitor height scale: short viewports trade chrome for canvas room. */
+@media (max-height: 900px) and (min-width: 901px) {
+  .app-shell {
+    grid-template-rows: 60px auto minmax(0, 1fr) 27px;
+  }
+
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 60px minmax(0, 1fr) 27px;
+  }
+
+  .panel-heading {
+    min-height: 50px;
+  }
+
+  .path-toolbar {
+    min-height: 42px;
+  }
+}
+
+@media (max-height: 820px) and (min-width: 901px) {
+  .app-shell {
+    grid-template-rows: 56px auto minmax(0, 1fr) 26px;
+  }
+
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 56px minmax(0, 1fr) 26px;
+  }
+
+  .app-banner {
+    display: none;
+  }
+
+  .path-toolbar {
+    min-height: 40px;
+    padding: 5px 10px;
+  }
+
+  .status-bar {
+    font-size: 8.5px;
+  }
+}
+
+@media (max-height: 768px) and (min-width: 901px) {
+  .app-shell,
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 54px minmax(0, 1fr) 25px;
+  }
+
+  .panel-heading {
+    min-height: 44px;
+  }
+
+  .path-toolbar {
+    min-height: 38px;
+  }
+
+  .status-bar {
+    font-size: 8.25px;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 901px) {
+  .app-shell,
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 50px minmax(0, 1fr) 24px;
+  }
+
+  .panel-heading {
+    min-height: 42px;
+  }
+
+  .path-toolbar {
+    min-height: 34px;
+    padding: 4px 10px;
+  }
+}
+
+@media (max-height: 600px) and (min-width: 901px) {
+  .app-shell,
+  .app-shell:not(:has(.app-banner)) {
+    grid-template-rows: 46px minmax(0, 1fr) 22px;
+  }
+
+  .panel-heading {
+    min-height: 40px;
+  }
+
+  .panel-eyebrow {
+    display: none;
+  }
+
+  .path-toolbar {
+    min-height: 30px;
+  }
+
+  .status-bar {
+    font-size: 8px;
+  }
+}
+
+/* ── Collapsible panels ─────────────────────────────────────────────────── */
+
+.panel-collapse,
+.banner-toggle {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.panel-collapse svg {
+  transform: rotate(180deg);
+}
+
+.panel-collapse:hover,
+.banner-toggle:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.banner-toggle {
+  margin-left: 2px;
+}
+
+.banner-toggle.active {
+  border-color: rgba(0, 82, 255, 0.35);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.editor-column.is-collapsed,
+.inspector-column.is-collapsed,
+.export-column.is-collapsed {
+  overflow: hidden;
+  border-right: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.panel-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 0;
+  border: 0;
+  color: var(--muted);
+  background: #ffffff;
+  cursor: pointer;
+  outline-offset: -2px;
+}
+
+.panel-rail:hover,
+.panel-rail:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.panel-rail-label {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.panel-rail-eyebrow {
+  color: var(--soft-muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.16em;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.workspace-restore {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 5;
+}
+
+.workspace-restore-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(23, 23, 23, 0.08);
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 640;
+}
+
+.workspace-restore-button:hover {
+  border-color: rgba(0, 82, 255, 0.35);
+  color: var(--accent);
+}
+
+/* ── Collapsible inspector / export sections ─────────────────────────────── */
+
+.section-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.section-heading > .section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 0;
+  border: 0;
+  border-radius: 4px;
+  color: #525252;
+  background: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 680;
+  text-align: left;
+}
+
+.section-heading > .section-toggle:hover {
+  color: var(--ink);
+}
+
+.section-title {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.section-title.is-static {
+  color: #525252;
+}
+
+.section-caret {
+  color: var(--soft-muted);
+  transform: rotate(0deg);
+  transition: transform 120ms ease;
+}
+
+.section-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.inspector-section.is-collapsed {
+  padding-bottom: 11px;
+}
+
+.inspector-section.is-collapsed .section-heading {
+  margin-bottom: 0;
+}
+
+.section-body {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-caret {
+    transition: none;
+  }
+}
+
+/* ── Product banner ──────────────────────────────────────────────────────── */
+
+.app-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, #f6f9ff 0%, #ffffff 62%);
+}
+
+.banner-mark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+}
+
+.banner-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-width: 0;
+}
+
+.banner-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 11.5px;
+}
+
+.banner-tag {
+  padding: 1px 7px;
+  border: 1px solid rgba(0, 82, 255, 0.22);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.03em;
+}
+
+.banner-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 10px;
+  list-style: none;
+}
+
+.banner-highlights li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.banner-highlights svg {
+  color: var(--accent);
+}
+
+.banner-dismiss {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.banner-dismiss:hover {
+  border-color: var(--line);
+  color: var(--ink);
+  background: #ffffff;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+}
+
+@media (max-width: 1180px) {
+  .banner-highlights {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-banner {
+    padding: 8px 12px;
+  }
+
+  .banner-tag {
+    display: none;
+  }
+
+  .banner-body {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-banner .banner-mark {
+    display: none;
+  }
+
+  .banner-headline {
+    font-size: 10.5px;
+  }
 }
