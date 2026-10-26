@@ -12,6 +12,9 @@ Vector Engine is a JSON-driven graphics engine with a C++23 rendering core, WebA
 - C++23 native library, CLI, and Emscripten bindings from one core implementation
 - CodeMirror JSON editor with live validation and debounced rendering
 - Responsive preview with fit and zoom controls
+- Monitor-resolution breakpoint scale from 1280×800 up to 5K, with short-viewport and ultrawide tiers
+- Collapsible workspace columns (expanded, rail, hidden) and collapsible inspector/export sections, persisted locally
+- Dismissible product banner, favicon set, web app manifest, and Open Graph social card
 - Configurable dimensions, scale, background, and JPEG quality
 - Resource limits for source size, dimensions, object count, path size, nesting, and raster area
 - Vitest, Playwright, and Catch2 test suites
@@ -117,7 +120,7 @@ vector-engine/
 ├── engine/tests             Catch2 tests
 ├── schemas                  Versioned JSON Schema
 ├── examples                 Example scenes
-├── docs                     Architecture and deployment documentation
+├── docs                     Architecture, breakpoints, and deployment documentation
 ├── scripts                  Build-time deployment verification
 ├── CMakeLists.txt           Native and WebAssembly entry point
 ├── CMakePresets.json        Reproducible build presets
@@ -153,6 +156,9 @@ The renderer accepts only declared scene properties, hexadecimal colors, support
 - [Scene format](docs/scene-format.md)
 - [WebAssembly integration](docs/wasm.md)
 - [Export formats](docs/export-formats.md)
+- [Responsive breakpoints](docs/responsive-breakpoints.md)
+- [Workspace layout and brand assets](docs/workspace-layout.md)
+- [Deploying to Vercel](docs/deployment-vercel.md)
 
 ## License
 

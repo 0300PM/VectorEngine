@@ -1,0 +1,21 @@
+# Files the static Vite build never reads. Everything the build needs
+# (package.json, package-lock.json, vercel.json, scripts/, schemas/, and
+# apps/web including public/wasm) stays in the upload.
+.git
+.github
+.idea
+.vercel
+engine
+build
+build-native
+coverage
+playwright-report
+test-results
+docs
+examples
+apps/web/dist
+apps/web/e2e
+**/*.test.ts
+**/__tests__/**
+CMakeLists.txt
+CMakePresets.json
