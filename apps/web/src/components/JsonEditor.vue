@@ -27,6 +27,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   format: []
+  collapse: []
 }>()
 
 const editorHost = ref<HTMLDivElement | null>(null)
@@ -215,6 +216,15 @@ onBeforeUnmount(() => {
         <button class="icon-text-button" type="button" title="Format JSON (Ctrl/⌘ + Shift + F)" @click="emit('format')">
           <UiIcon name="format" />
           Format
+        </button>
+        <button
+          class="panel-collapse"
+          type="button"
+          title="Collapse panel"
+          aria-label="Collapse Source panel"
+          @click="emit('collapse')"
+        >
+          <UiIcon name="chevron" :size="13" />
         </button>
       </div>
     </header>

@@ -56,44 +56,44 @@ const hasTwoPaths = computed(() => selectedPaths.value.length === 2)
 
 const editingReason = computed(() => {
   if (selectedPaths.value.length === 0) {
-    return 'Wybierz ścieżkę, aby edytować punkty'
+    return 'Select a path to edit its nodes'
   }
   if (!hasExactlyOnePath.value) {
-    return 'Edycja punktów wymaga jednej ścieżki'
+    return 'Node editing requires exactly one path'
   }
   if (subpathCount.value === 0) {
-    return 'Ścieżka nie ma podścieżek'
+    return 'The path has no subpaths'
   }
   return ''
 })
 
 const joinReason = computed(() => {
   if (!hasExactlyOnePath.value) {
-    return 'Wybierz jedną ścieżkę'
+    return 'Select a single path'
   }
   if (subpathCount.value < 2) {
-    return 'Cóż, potrzebujesz dwóch podścieżek do połączenia'
+    return 'The path needs at least two subpaths to join'
   }
   return ''
 })
 
 const splitReason = computed(() => {
   if (!hasExactlyOnePath.value) {
-    return 'Wybierz jedną ścieżkę'
+    return 'Select a single path'
   }
   const first = primaryModel.value?.subpaths[0]
   if (!first || first.nodes.length < 3) {
-    return 'Podścieżka musi mieć co najmniej 3 punkty'
+    return 'A subpath needs at least 3 nodes'
   }
   return ''
 })
 
 const booleanReason = computed(() => {
   if (selectedPaths.value.length < 2) {
-    return 'Wybierz dwie ścieżki'
+    return 'Select two paths'
   }
   if (selectedPaths.value.some((object) => !parsePathObject(object)?.subpaths.some((subpath) => subpath.closed))) {
-    return 'Wymagane są zamknięte kształty'
+    return 'Closed shapes are required'
   }
   return ''
 })
@@ -115,7 +115,7 @@ const toggleEditing = (): void => {
 const runCommand = (command: PathCommand): void => {
   const applied = store.applyPathCommandToSelection(command)
   if (!applied) {
-    store.setPathNotice('Operacja nie została wykonana')
+    store.setPathNotice('The operation was not applied')
   }
 }
 
@@ -165,7 +165,7 @@ const removeSelected = (): void => {
 </script>
 
 <template>
-  <div class="path-toolbar" role="toolbar" aria-label="Narzędzia ścieżek wektorowych">
+  <div class="path-toolbar" role="toolbar" aria-label="Vector path tools">
     <div class="path-toolbar-group">
       <button
         v-for="tool in PATH_TOOLS"
@@ -189,64 +189,64 @@ const removeSelected = (): void => {
         type="button"
         class="path-tool-button"
         :class="{ active: nodeEditing }"
-        :title="nodeEditing ? 'Wyłącz edycję punktów' : editingReason || 'Włącz edycję punktów'"
+        :title="nodeEditing ? 'Disable node editing' : editingReason || 'Enable node editing'"
         @click="toggleEditing"
       >
         <UiIcon name="nodes" :size="15" />
-        <span>Punkty</span>
+        <span>Nodes</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :disabled="!hasExactlyOnePath || subpathCount < 2"
-        :title="joinReason || 'Połącz podścieżki'"
+        :title="joinReason || 'Join subpaths'"
         @click="runCommand({ kind: 'join', first: 0, second: 1 })"
       >
         <UiIcon name="link" :size="15" />
-        <span>Połącz</span>
+        <span>Join</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :disabled="!hasExactlyOnePath || subpathCount < 2"
-        :title="splitReason || 'Rozdziel podścieżki'"
+        :title="splitReason || 'Split subpaths'"
         @click="splitSubpath"
       >
         <UiIcon name="unlink" :size="15" />
-        <span>Rozdziel</span>
+        <span>Split</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :disabled="!hasExactlyOnePath || nodeCount < 2"
-        title="Przewróć kierunek ścieżki"
+        title="Reverse path direction"
         @click="runCommand({ kind: 'reverse', subpath: 0 })"
       >
         <UiIcon name="reverse" :size="15" />
-        <span>Odwróć</span>
+        <span>Reverse</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :disabled="!hasExactlyOnePath || subpathCount < 1"
-        :title="closedCount > 0 ? 'Otwórz podścieżkę' : 'Zamknij podścieżkę'"
+        :title="closedCount > 0 ? 'Open subpath' : 'Close subpath'"
         @click="toggleClosed"
       >
         <UiIcon :name="closedCount > 0 ? 'unlock' : 'lock'" :size="15" />
-        <span>{{ closedCount > 0 ? 'Otwórz' : 'Zamknij' }}</span>
+        <span>{{ closedCount > 0 ? 'Open' : 'Close' }}</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :disabled="!hasExactlyOnePath || nodeCount < 3"
-        title="Uproszcz geometrię"
+        title="Simplify geometry"
         @click="simplify"
       >
         <UiIcon name="simplify" :size="15" />
-        <span>Uproszcz</span>
+        <span>Simplify</span>
       </button>
       <label class="tolerance-field" :class="{ disabled: !hasExactlyOnePath }">
-        <span>Tolerancja</span>
+        <span>Tolerance</span>
         <input v-model.number="simplifyTolerance" type="range" min="0" max="40" step="0.5" :disabled="!hasExactlyOnePath" />
         <output>{{ simplifyTolerance }}</output>
       </label>
@@ -260,29 +260,29 @@ const removeSelected = (): void => {
         class="path-tool-button"
         :class="{ active: nodeMode === 'corner' }"
         :disabled="!hasSelectedNode"
-        title="Punkt załamania"
+        title="Corner node"
         @click="setNodeHandleMode('corner')"
       >
         <UiIcon name="corner" :size="15" />
-        <span>Załamanie</span>
+        <span>Corner</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :class="{ active: nodeMode === 'smooth' }"
         :disabled="!hasSelectedNode"
-        title="Punkt płynny"
+        title="Smooth node"
         @click="setNodeHandleMode('smooth')"
       >
         <UiIcon name="smooth" :size="15" />
-        <span>Płynny</span>
+        <span>Smooth</span>
       </button>
       <button
         type="button"
         class="path-tool-button"
         :class="{ active: nodeMode === 'symmetric' }"
         :disabled="!hasSelectedNode"
-        title="Punkt symetryczny"
+        title="Symmetric node"
         @click="setNodeHandleMode('symmetric')"
       >
         <UiIcon name="symmetric" :size="15" />
@@ -292,11 +292,11 @@ const removeSelected = (): void => {
         type="button"
         class="path-tool-button"
         :disabled="!hasSelectedNode"
-        title="Usuń wybrany punkt"
+        title="Delete selected node"
         @click="deleteSelectedNode"
       >
         <UiIcon name="minus" :size="15" />
-        <span>Usuń punkt</span>
+        <span>Delete node</span>
       </button>
     </div>
 
@@ -309,7 +309,7 @@ const removeSelected = (): void => {
         type="button"
         class="path-tool-button boolean"
         :disabled="!hasTwoPaths || booleanReason !== ''"
-        :title="booleanReason || `${BOOLEAN_LABELS[action.operation]} ścieżki`"
+        :title="booleanReason || `${BOOLEAN_LABELS[action.operation]} paths`"
         @click="runBoolean(action.operation)"
       >
         <UiIcon :name="action.icon" :size="15" />
@@ -324,21 +324,21 @@ const removeSelected = (): void => {
         type="button"
         class="path-tool-button danger"
         :disabled="selectedPaths.length === 0"
-        title="Usuń wybrane ścieżki"
+        title="Delete selected paths"
         @click="removeSelected"
       >
         <UiIcon name="close" :size="15" />
-        <span>Usuń</span>
+        <span>Delete</span>
       </button>
     </div>
 
     <p class="path-toolbar-status" role="status">
       <template v-if="pathNotice">{{ pathNotice }}</template>
       <template v-else-if="hasExactlyOnePath">
-        {{ subpathCount }} podścieżek · {{ nodeCount }} punktów · {{ closedCount }} zamknięte
+        {{ subpathCount }} subpaths · {{ nodeCount }} nodes · {{ closedCount }} closed
       </template>
-      <template v-else-if="selectedPaths.length > 1">Wybrano {{ selectedPaths.length }} ścieżek</template>
-      <template v-else>Narzędzia ścieżek wektorowych</template>
+      <template v-else-if="selectedPaths.length > 1">{{ selectedPaths.length }} paths selected</template>
+      <template v-else>Vector path tools</template>
     </p>
   </div>
 </template>

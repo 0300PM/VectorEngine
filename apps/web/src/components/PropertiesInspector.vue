@@ -22,6 +22,8 @@ type InspectorRow =
   | { kind: 'field'; state: FieldState }
   | { kind: 'dimension'; width: FieldState; height: FieldState }
 
+const emit = defineEmits<{ collapse: [] }>()
+
 const store = useEngineStore()
 
 const selectedObjects = computed(() => {
@@ -89,25 +91,36 @@ const rowKey = (row: InspectorRow): string =>
         <div class="panel-eyebrow">PROPERTIES</div>
         <h2 class="panel-title">Inspector</h2>
       </div>
-      <div class="inspector-history" role="group" aria-label="Undo and redo">
+      <div class="panel-heading-actions">
         <button
           type="button"
-          :disabled="!store.canUndo"
-          aria-label="Undo"
-          title="Undo (Ctrl+Z)"
-          @click="store.undo()"
+          class="panel-collapse"
+          title="Collapse panel"
+          aria-label="Collapse Properties panel"
+          @click="emit('collapse')"
         >
-          <UiIcon name="undo" :size="14" />
+          <UiIcon name="chevron" :size="13" />
         </button>
-        <button
-          type="button"
-          :disabled="!store.canRedo"
-          aria-label="Redo"
-          title="Redo (Ctrl+Shift+Z)"
-          @click="store.redo()"
-        >
-          <UiIcon name="redo" :size="14" />
-        </button>
+        <div class="inspector-history" role="group" aria-label="Undo and redo">
+          <button
+            type="button"
+            :disabled="!store.canUndo"
+            aria-label="Undo"
+            title="Undo (Ctrl+Z)"
+            @click="store.undo()"
+          >
+            <UiIcon name="undo" :size="14" />
+          </button>
+          <button
+            type="button"
+            :disabled="!store.canRedo"
+            aria-label="Redo"
+            title="Redo (Ctrl+Shift+Z)"
+            @click="store.redo()"
+          >
+            <UiIcon name="redo" :size="14" />
+          </button>
+        </div>
       </div>
     </header>
 
@@ -126,7 +139,7 @@ const rowKey = (row: InspectorRow): string =>
           <span class="selection-label">{{ selectionLabel }}</span>
         </div>
 
-        <InspectorSection id="inspector-transform" title="Transform">
+        <InspectorSection id="inspector-transform" title="Transform" storage-key="inspector.transform">
           <template v-for="row in rowsBySection.Transform" :key="rowKey(row)">
             <InspectorDimensionField
               v-if="row.kind === 'dimension'"
@@ -144,7 +157,7 @@ const rowKey = (row: InspectorRow): string =>
           </template>
         </InspectorSection>
 
-        <InspectorSection id="inspector-appearance" title="Appearance">
+        <InspectorSection id="inspector-appearance" title="Appearance" storage-key="inspector.appearance">
           <template v-for="row in rowsBySection.Appearance" :key="rowKey(row)">
             <InspectorNumberField
               v-if="row.kind === 'field' && row.state.field.kind === 'number'"
@@ -168,6 +181,7 @@ const rowKey = (row: InspectorRow): string =>
         <InspectorSection
           id="inspector-shape"
           title="Shape"
+          storage-key="inspector.shape"
           :hint="rowsBySection.Shape.length === 0 ? 'No shape parameters' : undefined"
         >
           <template v-for="row in rowsBySection.Shape" :key="rowKey(row)">

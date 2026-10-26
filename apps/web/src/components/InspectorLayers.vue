@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ObjectType } from '@/inspector/fields'
 import { useEngineStore } from '@/stores/engine'
+import InspectorSection from './InspectorSection.vue'
 import UiIcon from './UiIcon.vue'
 import type { IconName } from '@/ui/icons'
 
@@ -42,11 +43,12 @@ const handleSelect = (id: string, event: MouseEvent): void => {
 </script>
 
 <template>
-  <section class="inspector-section layers-section" aria-labelledby="inspector-layers-heading">
-    <div class="section-heading">
-      <label id="inspector-layers-heading">Layers</label>
-      <small class="section-hint">{{ objects.length }} objects</small>
-    </div>
+  <InspectorSection
+    id="inspector-layers"
+    title="Layers"
+    :hint="`${objects.length} objects`"
+    storage-key="inspector.layers"
+  >
     <ul class="layers-list" role="listbox" aria-label="Scene layers" multiple>
       <li v-for="entry in objects" :key="entry.id" class="layer-item">
         <button
@@ -73,5 +75,5 @@ const handleSelect = (id: string, event: MouseEvent): void => {
         </button>
       </li>
     </ul>
-  </section>
+  </InspectorSection>
 </template>

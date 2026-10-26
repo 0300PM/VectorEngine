@@ -11,7 +11,7 @@ import {
   createPolylinePath,
   createStarPath,
 } from '@/paths/shapes'
-import type { PathToolKind } from '@/paths/tools'
+import { getPathTool, type PathToolKind } from '@/paths/tools'
 
 const props = defineProps<{
   model: PathModel
@@ -142,13 +142,13 @@ const hitTest = (point: Point): HitTarget | null => {
 const finishDraft = (): void => {
   const points = draftPoints.value
   if (props.tool === 'line' && points.length === 2) {
-    emit('create', createLinePath(points[0]!, points[1]!), 'Linia')
+    emit('create', createLinePath(points[0]!, points[1]!), getPathTool('line').label)
   } else if (props.tool === 'polyline' && points.length >= 2) {
-    emit('create', createPolylinePath(points), 'Wielościęń')
+    emit('create', createPolylinePath(points), getPathTool('polyline').label)
   } else if (props.tool === 'polygon' && points.length >= 3) {
-    emit('create', createPolygonPath(points), 'Wielokąt')
+    emit('create', createPolygonPath(points), getPathTool('polygon').label)
   } else if (props.tool === 'pen' && points.length >= 2) {
-    emit('create', createPolylinePath(points, true), 'Rysownik')
+    emit('create', createPolylinePath(points, true), getPathTool('pen').label)
   }
   resetDraft()
 }
@@ -244,9 +244,13 @@ const handlePointerUp = (): void => {
   dragModel.value = null
 
   if (props.tool === 'arc' && dragStart.value && cursor.value) {
-    emit('create', arcFromDrag(dragStart.value, cursor.value), 'Łuk')
+    emit('create', arcFromDrag(dragStart.value, cursor.value), getPathTool('arc').label)
   } else if (props.tool === 'star' && dragStart.value && cursor.value) {
-    emit('create', createStarPath(dragStart.value, pointDistance(dragStart.value, cursor.value), 12, 5), 'Gwiazda')
+    emit(
+      'create',
+      createStarPath(dragStart.value, pointDistance(dragStart.value, cursor.value), 12, 5),
+      getPathTool('star').label,
+    )
   }
   resetDraft()
 }
