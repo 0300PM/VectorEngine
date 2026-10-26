@@ -4,7 +4,7 @@ import { Buffer } from 'node:buffer'
 test('renders the default scene and exposes export controls', async ({ page, isMobile }) => {
   await page.goto('/')
 
-  await expect(page.getByText('VECTOR ENGINE')).toBeVisible()
+  await expect(page.getByText('VECTOR ENGINE', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Preview' })).toBeVisible()
   await expect(page.getByAltText('Rendered vector scene')).toBeVisible()
   await expect(page.getByText('Scene valid')).toBeVisible()
@@ -92,4 +92,44 @@ test('inspector edits object properties, syncs the canvas and supports undo', as
 
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(width).toHaveValue('1040')
+})
+
+test('collapses a workspace column into a rail and restores it', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Desktop layout only')
+  await page.goto('/')
+
+  await page.getByRole('button', { name: 'Source: Collapse' }).click()
+  const rail = page.locator('.panel-rail').first()
+  await expect(rail).toBeVisible()
+  await expect(page.locator('.editor-column')).toHaveClass(/is-collapsed/)
+
+  await rail.click()
+  await expect(page.locator('.editor-column')).not.toHaveClass(/is-collapsed/)
+  await expect(page.getByRole('heading', { name: 'Scene JSON' })).toBeVisible()
+})
+
+test('collapses inspector and export sections', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Desktop layout only')
+  await page.goto('/')
+
+  const formatToggle = page.getByRole('button', { name: '2. Format' })
+  await expect(formatToggle).toHaveAttribute('aria-expanded', 'true')
+  await formatToggle.click()
+  await expect(formatToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'PNG Lossless' })).toBeHidden()
+
+  await formatToggle.click()
+  await expect(page.getByRole('button', { name: 'PNG Lossless' })).toBeVisible()
+})
+
+test('dismisses and restores the product banner', async ({ page, isMobile }) => {
+  await page.goto('/')
+  const banner = page.locator('.app-banner')
+  await expect(banner).toBeVisible()
+
+  await page.getByRole('button', { name: 'Dismiss banner' }).click()
+  await expect(banner).toBeHidden()
+
+  await page.getByRole('button', { name: 'Toggle product banner' }).click()
+  await expect(banner).toBeVisible()
 })
