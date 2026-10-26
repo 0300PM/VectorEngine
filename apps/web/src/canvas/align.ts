@@ -35,17 +35,17 @@ export interface DistributeOptions {
 }
 
 export const ALIGN_LABELS: Record<AlignEdge, string> = {
-  left: 'Wyrównaj do lewej',
-  'center-h': 'Wyrównaj do środka pionowego',
-  right: 'Wyrównaj do prawej',
-  top: 'Wyrównaj do góry',
-  'center-v': 'Wyrównaj do środka poziomego',
-  bottom: 'Wyrównaj do dołu',
+  left: 'Align left',
+  'center-h': 'Align horizontal centers',
+  right: 'Align right',
+  top: 'Align top',
+  'center-v': 'Align vertical centers',
+  bottom: 'Align bottom',
 }
 
 export const DISTRIBUTE_LABELS: Record<DistributeAxis, string> = {
-  x: 'Równomiernie w poziomie',
-  y: 'Równomiernie w pionie',
+  x: 'Distribute horizontally',
+  y: 'Distribute vertically',
 }
 
 const withTranslation = (object: SceneObject, deltaX: number, deltaY: number): Transform => {

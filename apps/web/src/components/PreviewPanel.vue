@@ -107,25 +107,25 @@ const handlePathCancel = (): void => emit('path-cancel')
         </button>
       </div>
       <span class="control-divider" />
-      <button type="button" title="Zbliż" aria-label="Zoom in" @click="zoomIn">
+      <button type="button" title="Zoom in" aria-label="Zoom in" @click="zoomIn">
         <UiIcon name="plus" :size="14" />
       </button>
-      <button class="zoom-value" type="button" title="Pokaż w skali 100%" @click="store.showActualSize()">
+      <button class="zoom-value" type="button" title="Zoom to 100%" @click="store.showActualSize()">
         {{ label }}
       </button>
-      <button type="button" title="Oddal" aria-label="Zoom out" @click="zoomOut">
+      <button type="button" title="Zoom out" aria-label="Zoom out" @click="zoomOut">
         <UiIcon name="minus" :size="14" />
       </button>
       <span class="control-divider" />
-      <button class="fit-button" type="button" title="Dopasuj do canvasa" @click="store.fitToScreen()">
+      <button class="fit-button" type="button" title="Fit to canvas" @click="store.fitToScreen()">
         <UiIcon name="fit" :size="14" />
         Fit
       </button>
-      <button class="fit-button" type="button" title="Dopasuj do zaznaczenia" @click="store.fitToSelection()">
-        Zaznaczenie
+      <button class="fit-button" type="button" title="Fit to selection" @click="store.fitToSelection()">
+        Selection
       </button>
       <span class="control-divider" />
-      <span class="cursor-readout" :title="'Współrzędne dokumentu pod kursorem'">{{ cursorLabel }}</span>
+      <span class="cursor-readout" :title="'Document coordinates under the cursor'">{{ cursorLabel }}</span>
     </div>
   </section>
 </template>

@@ -8,12 +8,14 @@ import type {
   FitMode,
 } from '@/export/types'
 import { useEngineStore } from '@/stores/engine'
+import InspectorSection from './InspectorSection.vue'
 import UiIcon from './UiIcon.vue'
 
 const store = useEngineStore()
 const emit = defineEmits<{
   export: []
   exportBatch: []
+  collapse: []
 }>()
 
 const expandedOverrideId = ref<string | null>(null)
@@ -160,32 +162,42 @@ const toggleOverrideRow = (id: string): void => {
         <div class="panel-eyebrow">OUTPUT</div>
         <h2 class="panel-title">Export</h2>
       </div>
-      <div class="mode-toggle" role="group" aria-label="Export pipeline mode">
+      <div class="panel-heading-actions">
         <button
           type="button"
-          :class="{ selected: !store.batchMode }"
-          :aria-pressed="!store.batchMode"
-          @click="store.batchMode = false"
+          class="panel-collapse"
+          title="Collapse panel"
+          aria-label="Collapse Export panel"
+          @click="emit('collapse')"
         >
-          Single
+          <UiIcon name="chevron" :size="13" />
         </button>
-        <button
-          type="button"
-          :class="{ selected: store.batchMode }"
-          :aria-pressed="store.batchMode"
-          @click="store.batchMode = true"
-        >
-          Batch
-        </button>
+        <div class="mode-toggle" role="group" aria-label="Export pipeline mode">
+          <button
+            type="button"
+            :class="{ selected: !store.batchMode }"
+            :aria-pressed="!store.batchMode"
+            @click="store.batchMode = false"
+          >
+            Single
+          </button>
+          <button
+            type="button"
+            :class="{ selected: store.batchMode }"
+            :aria-pressed="store.batchMode"
+            @click="store.batchMode = true"
+          >
+            Batch
+          </button>
+        </div>
       </div>
     </header>
 
     <div class="inspector-scroll">
-      <section class="inspector-section" aria-labelledby="sec-1-target">
-        <div class="section-heading">
-          <label id="sec-1-target">1. Target</label>
+      <InspectorSection id="sec-1-target" title="1. Target" storage-key="export.target">
+        <template #heading-extra>
           <span class="config-badge">{{ store.batchMode ? `${store.batchSelectedIds.length} items` : store.targetKind }}</span>
-        </div>
+        </template>
 
         <template v-if="!store.batchMode">
           <div class="scope-grid" role="group" aria-label="Export target scope">
@@ -378,13 +390,12 @@ const toggleOverrideRow = (id: string): void => {
             </div>
           </div>
         </template>
-      </section>
+      </InspectorSection>
 
-      <section class="inspector-section" aria-labelledby="sec-2-format">
-        <div class="section-heading">
-          <label id="sec-2-format">2. Format</label>
+      <InspectorSection id="sec-2-format" title="2. Format" storage-key="export.format">
+        <template #heading-extra>
           <span class="config-badge">{{ store.exportFormat.toUpperCase() }}</span>
-        </div>
+        </template>
         <div class="format-grid">
           <button
             v-for="format in formats"
@@ -402,13 +413,12 @@ const toggleOverrideRow = (id: string): void => {
             </span>
           </button>
         </div>
-      </section>
+      </InspectorSection>
 
-      <section class="inspector-section" aria-labelledby="sec-3-dimensions">
-        <div class="section-heading">
-          <label id="sec-3-dimensions">3. Dimensions</label>
-          <button type="button" @click="store.resetDimensions()">Reset</button>
-        </div>
+      <InspectorSection id="sec-3-dimensions" title="3. Dimensions" storage-key="export.dimensions">
+        <template #heading-extra>
+          <button type="button" class="inline-btn" @click="store.resetDimensions()">Reset</button>
+        </template>
 
         <div class="dimension-row">
           <label class="field-group">
@@ -482,12 +492,9 @@ const toggleOverrideRow = (id: string): void => {
             {{ fit.label }}
           </button>
         </div>
-      </section>
+      </InspectorSection>
 
-      <section class="inspector-section" aria-labelledby="sec-4-background">
-        <div class="section-heading">
-          <label id="sec-4-background">4. Background</label>
-        </div>
+      <InspectorSection id="sec-4-background" title="4. Background" storage-key="export.background">
         <div class="background-options">
           <label class="radio-option">
             <input
@@ -553,12 +560,9 @@ const toggleOverrideRow = (id: string): void => {
           aria-label="Custom background HEX value"
           placeholder="#FFFFFF"
         />
-      </section>
+      </InspectorSection>
 
-      <section class="inspector-section" aria-labelledby="sec-5-advanced">
-        <div class="section-heading">
-          <label id="sec-5-advanced">5. Advanced</label>
-        </div>
+      <InspectorSection id="sec-5-advanced" title="5. Advanced" storage-key="export.advanced">
 
         <div v-if="store.exportFormat === 'jpeg'" class="adv-block">
           <div class="section-heading quality-heading tight">
@@ -655,15 +659,14 @@ const toggleOverrideRow = (id: string): void => {
             placeholder="{document}_{object}_{scale}"
           />
         </label>
-      </section>
+      </InspectorSection>
 
-      <section class="inspector-section" aria-labelledby="sec-6-preview">
-        <div class="section-heading">
-          <label id="sec-6-preview">6. Preview</label>
+      <InspectorSection id="sec-6-preview" title="6. Preview" storage-key="export.preview">
+        <template #heading-extra>
           <span v-if="store.exportPreview?.downscaled" class="config-badge">
             Thumb {{ store.exportPreview.previewWidth }}×{{ store.exportPreview.previewHeight }}
           </span>
-        </div>
+        </template>
 
         <div class="export-thumb-frame checker">
           <img
@@ -705,7 +708,7 @@ const toggleOverrideRow = (id: string): void => {
             {{ warn }}
           </li>
         </ul>
-      </section>
+      </InspectorSection>
     </div>
 
     <footer class="export-footer" aria-labelledby="sec-7-export">

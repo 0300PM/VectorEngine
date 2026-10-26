@@ -238,7 +238,7 @@ describe('canvas stage', () => {
     store.setSelectedObjectIds(['a', 'b'])
     await nextTick()
 
-    const button = host.querySelector('[title="Wyrównaj do prawej"]') as HTMLButtonElement
+    const button = host.querySelector('[title="Align right"]') as HTMLButtonElement
     button.click()
     await nextTick()
 
