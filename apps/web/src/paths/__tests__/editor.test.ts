@@ -92,7 +92,7 @@ describe('boolean objects', () => {
       createRectanglePath(0, 0, 100, 100),
       createRectanglePath(50, 50, 100, 100),
       'union',
-      { id: 'union-1', name: 'Łączenie' },
+      { id: 'union-1', name: 'Union' },
     )
     expect(outcome.reason).toBe('')
     expect(outcome.object?.type).toBe('path')
@@ -103,10 +103,10 @@ describe('boolean objects', () => {
     const open = createPolygonPath([{ x: 0, y: 0 }, { x: 10, y: 0 }])
     const outcome = buildBooleanObject(open, createRectanglePath(0, 0, 10, 10), 'subtract', {
       id: 'sub-1',
-      name: 'Odejmowanie',
+      name: 'Subtract',
     })
     expect(outcome.object).toBeNull()
-    expect(outcome.reason).toContain('zamknięte')
+    expect(outcome.reason).toContain('Closed shapes')
   })
 })
 

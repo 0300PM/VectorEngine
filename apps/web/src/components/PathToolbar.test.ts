@@ -60,7 +60,7 @@ describe('PathToolbar', () => {
   it('renders every drawing tool', async () => {
     const { host, app } = await mountToolbar()
     const text = host.textContent ?? ''
-    for (const label of ['Wybór', 'Linia', 'Wielościęń', 'Rysownik', 'Łuk', 'Wielokąt', 'Gwiazda']) {
+    for (const label of ['Select', 'Line', 'Polyline', 'Pen', 'Arc', 'Polygon', 'Star']) {
       expect(text).toContain(label)
     }
     app.unmount()
@@ -68,7 +68,7 @@ describe('PathToolbar', () => {
 
   it('switches the active tool through the store', async () => {
     const { host, app, store } = await mountToolbar()
-    buttonWith(host, 'Rysownik').click()
+    buttonWith(host, 'Pen').click()
     await nextTick()
     expect(store.pathTool).toBe('pen')
     expect(store.nodeEditing).toBe(false)
@@ -79,7 +79,7 @@ describe('PathToolbar', () => {
     const { host, app, store } = await mountToolbar()
     await store.render()
 
-    const union = buttonWith(host, 'Łączenie')
+    const union = buttonWith(host, 'Union')
     expect(union.disabled).toBe(true)
 
     store.addPathFromModel(createRectanglePath(0, 0, 10, 10), 'A')
@@ -97,14 +97,14 @@ describe('PathToolbar', () => {
     const { host, app, store } = await mountToolbar()
     await store.render()
 
-    expect(buttonWith(host, 'Połącz').disabled).toBe(true)
-    expect(buttonWith(host, 'Rozdziel').disabled).toBe(true)
-    expect(buttonWith(host, 'Odwróć').disabled).toBe(true)
+    expect(buttonWith(host, 'Join').disabled).toBe(true)
+    expect(buttonWith(host, 'Split').disabled).toBe(true)
+    expect(buttonWith(host, 'Reverse').disabled).toBe(true)
 
     store.addPathFromModel(createRectanglePath(0, 0, 10, 10), 'A')
     await nextTick()
-    expect(buttonWith(host, 'Odwróć').disabled).toBe(false)
-    expect(buttonWith(host, 'Połącz').disabled).toBe(true)
+    expect(buttonWith(host, 'Reverse').disabled).toBe(false)
+    expect(buttonWith(host, 'Join').disabled).toBe(true)
     app.unmount()
   })
 
@@ -116,7 +116,7 @@ describe('PathToolbar', () => {
     store.setSelectedObjectIds([first.id, second.id])
     await nextTick()
 
-    buttonWith(host, 'Przecięcie').click()
+    buttonWith(host, 'Intersect').click()
     await nextTick()
 
     expect(store.selectedObjectIds).toHaveLength(1)
@@ -131,11 +131,11 @@ describe('PathToolbar', () => {
     store.addPathFromModel(createRectanglePath(0, 0, 10, 10), 'A')
     await nextTick()
 
-    buttonWith(host, 'Punkty').click()
+    buttonWith(host, 'Nodes').click()
     await nextTick()
     expect(store.nodeEditing).toBe(false)
 
-    buttonWith(host, 'Punkty').click()
+    buttonWith(host, 'Nodes').click()
     await nextTick()
     expect(store.nodeEditing).toBe(true)
     app.unmount()
@@ -147,7 +147,7 @@ describe('PathToolbar', () => {
     store.addPathFromModel(createRectanglePath(0, 0, 10, 10), 'A')
     await nextTick()
 
-    buttonWith(host, 'Usuń', true).click()
+    buttonWith(host, 'Delete', true).click()
     await nextTick()
     expect(store.selectedObjectIds).toEqual([])
     app.unmount()
@@ -161,7 +161,7 @@ describe('PathToolbar', () => {
     await nextTick()
     expect(nodeModeOf(store)).toBe('corner')
 
-    buttonWith(host, 'Płynny').click()
+    buttonWith(host, 'Smooth').click()
     await nextTick()
     expect(store.selectedNode).toBe(1)
     expect(nodeModeOf(store)).toBe('smooth')
@@ -176,12 +176,12 @@ describe('PathToolbar', () => {
     const { host, app, store } = await mountToolbar()
     await store.render()
 
-    expect(buttonWith(host, 'Załamanie').disabled).toBe(true)
-    expect(buttonWith(host, 'Usuń punkt').disabled).toBe(true)
+    expect(buttonWith(host, 'Corner').disabled).toBe(true)
+    expect(buttonWith(host, 'Delete node').disabled).toBe(true)
 
     store.addPathFromModel(createRectanglePath(0, 0, 10, 10), 'A')
     await nextTick()
-    expect(buttonWith(host, 'Załamanie').disabled).toBe(false)
+    expect(buttonWith(host, 'Corner').disabled).toBe(false)
     app.unmount()
   })
 })

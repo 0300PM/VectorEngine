@@ -59,7 +59,7 @@ describe('boolean operations', () => {
     ])
     const result = booleanOnModels('union', open, squareB())
     expect(result.supported).toBe(false)
-    expect(result.reason).toContain('zamknięte')
+    expect(result.reason).toContain('Closed shapes')
   })
 
   it('produces editable path data', () => {
